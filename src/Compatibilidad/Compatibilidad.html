@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Refaccionaria — Gestión de Compatibilidades</title>
+  <!-- Bootstrap 5 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { min-height:100vh; }
+    .sidebar { min-height:100vh; }
+    .table-wrap { max-height:420px; overflow:auto; }
+    .card-icon { font-size:28px; }
+    .btn-action { width: 35px; height: 35px; padding: 0; }
+    .compatibility-badge { 
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      margin-right: 5px;
+    }
+    .compatibility-card {
+      transition: transform 0.2s;
+    }
+    .compatibility-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .match-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+    }
+    .product-cell {
+      max-width: 200px;
+    }
+    .vehicle-cell {
+      max-width: 200px;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-dark bg-dark px-3">
+    <a class="navbar-brand" href="#">
+      <i class="fas fa-car me-2"></i>Refaccionaria Lexus (demo)
+    </a>
+    <div class="d-flex align-items-center">
+      <input class="form-control form-control-sm me-2" type="search" placeholder="Buscar compatibilidad..." id="globalSearch">
+      <button class="btn btn-outline-light btn-sm" id="btnSearch">
+        <i class="fas fa-search"></i>
+      </button>
+    </div>
+  </nav>
+
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <aside class="col-12 col-md-3 col-lg-2 p-3 bg-light sidebar">
+        <ul class="nav flex-column">
+          <li class="nav-item"><a class="nav-link" href="/src//Home.html"><i class="fas fa-home me-2"></i>Inicio</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Productos/Productos.html"><i class="fas fa-box me-2"></i>Productos</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Categorias/Categorias.html"><i class="fas fa-tags me-2"></i>Categorías</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Proveedores/Proovedores.html"><i class="fas fa-truck me-2"></i>Proveedores</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Clientes/Clientes.html"><i class="fas fa-users me-2"></i>Clientes</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Vehiculos/Vehiculos.html"><i class="fas fa-car me-2"></i>Vehículos</a></li>
+          <li class="nav-item"><a class="nav-link text-danger" href="/src/Ventas/Ventas.html"><i class="fas fa-shopping-cart me-2"></i>Ventas</a></li>
+        </ul>
+
+        <hr>
+        <div class="d-grid">
+          <button class="btn btn-primary btn-sm mb-2" data-bs-toggle="modal" data-bs-target="#modalAgregarCompatibilidad">
+            <i class="fas fa-plus me-1"></i>Agregar Compatibilidad
+          </button>
+          <button class="btn btn-outline-primary btn-sm" onclick="refreshCompatibilidades()">
+            <i class="fas fa-sync-alt me-1"></i>Actualizar
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="col p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h2><i class="fas fa-link text-primary me-2"></i>Gestión de Compatibilidad</h2>
+          <div>
+            <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#modalAgregarCompatibilidad">
+              <i class="fas fa-plus"></i> Nueva Compatibilidad
+            </button>
+            <button class="btn btn-outline-primary" onclick="refreshCompatibilidades()">
+              <i class="fas fa-sync-alt"></i> Actualizar
+            </button>
+          </div>
+        </div>
+
+        <!-- Tarjetas de estadísticas -->
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Total Compatibilidades</small>
+                  <h4 id="countCompatibilidades">—</h4>
+                </div>
+                <div class="card-icon text-primary">🔗</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Productos con Compat.</small>
+                  <h4 id="countProductosCompatibles" class="text-success">—</h4>
+                </div>
+                <div class="card-icon text-success">📦</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Vehículos con Compat.</small>
+                  <h4 id="countVehiculosCompatibles" class="text-info">—</h4>
+                </div>
+                <div class="card-icon text-info">🚗</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Compat. por Producto</small>
+                  <h4 id="countPromedioCompat" class="text-warning">—</h4>
+                </div>
+                <div class="card-icon text-warning">📊</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Barra de herramientas -->
+        <div class="row mb-4">
+          <div class="col-md-8">
+            <div class="input-group">
+              <span class="input-group-text"><i class="fas fa-filter"></i></span>
+              <select class="form-select" id="filterProducto">
+                <option value="">Todos los productos</option>
+                <!-- Se cargarán dinámicamente -->
+              </select>
+              <select class="form-select" id="filterVehiculo">
+                <option value="">Todos los vehículos</option>
+                <!-- Se cargarán dinámicamente -->
+              </select>
+              <button class="btn btn-outline-secondary" onclick="aplicarFiltros()">
+                <i class="fas fa-check"></i> Aplicar
+              </button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <select class="form-select" id="ordenarPor">
+              <option value="producto">Ordenar por: Producto</option>
+              <option value="vehiculo">Ordenar por: Vehículo</option>
+              <option value="recientes">Más recientes</option>
+              <option value="antiguas">Más antiguas</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Vista de tarjetas (opcional) -->
+        <div class="mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-primary active" id="btnVistaTabla">
+                <i class="fas fa-table"></i> Tabla
+              </button>
+              <button class="btn btn-outline-primary" id="btnVistaTarjetas">
+                <i class="fas fa-th-large"></i> Tarjetas
+              </button>
+            </div>
+          </div>
+          
+          <!-- Contenedor de tarjetas (oculto inicialmente) -->
+          <div class="row g-3 d-none" id="vistaTarjetas">
+            <!-- Se cargarán dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Tabla de compatibilidades -->
+        <section id="compatibilidades" class="mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4>Lista de Compatibilidades</h4>
+            <span class="badge bg-primary" id="contadorCompatibilidades">0 compatibilidades</span>
+          </div>
+
+          <div class="table-wrap border rounded p-2 bg-white">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th width="60">ID</th>
+                  <th>Producto</th>
+                  <th>Vehículo</th>
+                  <th>Información Técnica</th>
+                  <th>Notas</th>
+                  <th width="120">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tblCompatibilidades">
+                <!-- Los datos se cargarán aquí -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Paginación -->
+        <nav aria-label="Paginación de compatibilidades" class="mb-4">
+          <ul class="pagination justify-content-center">
+            <li class="page-item disabled">
+              <a class="page-link" href="#">Anterior</a>
+            </li>
+            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+            <li class="page-item"><a class="page-link" href="#">2</a></li>
+            <li class="page-item"><a class="page-link" href="#">3</a></li>
+            <li class="page-item">
+              <a class="page-link" href="#">Siguiente</a>
+            </li>
+          </ul>
+        </nav>
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal: Agregar/Editar Compatibilidad -->
+  <div class="modal fade" id="modalAgregarCompatibilidad" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-link me-2"></i>Agregar Compatibilidad</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="formAgregarCompatibilidad">
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Producto *</label>
+                <select name="id_producto" class="form-select" required>
+                  <option value="">Seleccionar producto...</option>
+                  <!-- Se cargarán dinámicamente -->
+                </select>
+                <div class="mt-1">
+                  <small class="text-muted" id="productoInfo"></small>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Vehículo *</label>
+                <select name="id_vehiculo" class="form-select" required>
+                  <option value="">Seleccionar vehículo...</option>
+                  <!-- Se cargarán dinámicamente -->
+                </select>
+                <div class="mt-1">
+                  <small class="text-muted" id="vehiculoInfo"></small>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Notas</label>
+                <textarea name="notas" class="form-control" rows="3" placeholder="Información adicional sobre la compatibilidad, instalación, especificaciones, etc."></textarea>
+              </div>
+              <div class="col-12">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="confirmacion" required>
+                  <label class="form-check-label">
+                    Confirmo que esta compatibilidad es correcta según las especificaciones técnicas
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+              <i class="fas fa-times"></i> Cancelar
+            </button>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save"></i> Guardar compatibilidad
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Ver Detalles de Compatibilidad -->
+  <div class="modal fade" id="modalDetalles" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-info-circle me-2"></i>Detalles de Compatibilidad</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="detallesContenido">
+          <!-- Contenido dinámico -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> Cerrar
+          </button>
+          <button type="button" class="btn btn-primary" onclick="editarCompatibilidadDesdeDetalles()">
+            <i class="fas fa-edit"></i> Editar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Ver todas las compatibilidades de un producto -->
+  <div class="modal fade" id="modalCompatibilidadesProducto" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-car me-2"></i>Vehículos Compatibles</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="compatibilidadesProductoContenido">
+          <!-- Contenido dinámico -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="Compatibilidad.js"></script>
+</body>
+</html>

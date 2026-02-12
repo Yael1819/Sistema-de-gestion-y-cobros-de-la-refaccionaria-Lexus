@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Refaccionaria — Gestión de Almacén</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    body { min-height:100vh; }
+    .sidebar { min-height:100vh; }
+    .card-icon { font-size:28px; }
+  </style>
+</head>
+
+<body>
+  <!-- NAVBAR -->
+  <nav class="navbar navbar-dark bg-dark px-3">
+    <a class="navbar-brand" href="#">Refaccionaria Lexus</a>
+  </nav>
+
+  <div class="container-fluid">
+    <div class="row">
+
+      <!-- SIDEBAR -->
+      <aside class="col-12 col-md-3 col-lg-2 p-3 bg-light sidebar">
+        <ul class="nav flex-column">
+<li class="nav-item"><a class="nav-link" href="/src/Productos/Productos.html"><i class="fas fa-home me-2"></i>Productos</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Categorias/Categorias.html"><i class="fas fa-tags me-2"></i>Categorías</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Proveedores/Proovedores.html"><i class="fas fa-truck me-2"></i>Proveedores</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Clientes/Clientes.html"><i class="fas fa-users me-2"></i>Clientes</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Vehiculos/Vehiculos.html"><i class="fas fa-car me-2"></i>Vehículos</a></li>
+          <li class="nav-item"><a class="nav-link text-danger" href="/src/Ventas/Ventas.html"><i class="fas fa-shopping-cart me-2"></i>Ventas</a></li>        </ul>
+      </aside>
+
+      <!-- MAIN -->
+      <main class="col p-4">
+        <h2 class="mb-4">Panel de control</h2>
+
+        <div class="row g-3">
+
+          <!-- PRODUCTOS -->
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Productos</small>
+                  <h4 id="countProductos">—</h4>
+                </div>
+                <div class="card-icon">🧩</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CLIENTES -->
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Clientes</small>
+                  <h4 id="countClientes">—</h4>
+                </div>
+                <div class="card-icon">👥</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- VENTAS TOTALES -->
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Ventas totales</small>
+                  <h4 id="countVentasTotales">—</h4>
+                </div>
+                <div class="card-icon">📦</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- VENTAS HOY -->
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Ventas hoy</small>
+                  <h4 id="countVentasHoy">—</h4>
+                </div>
+                <div class="card-icon">🧾</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- SCRIPTS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    async function cargarEstadisticas() {
+      try {
+        const res = await fetch('http://localhost:3000/api/estadisticas');
+        const data = await res.json();
+
+        document.getElementById('countProductos').textContent = data.totalProductos;
+        document.getElementById('countClientes').textContent = data.totalClientes;
+        document.getElementById('countVentasTotales').textContent = data.totalVentas;
+        document.getElementById('countVentasHoy').textContent = data.ventasHoy;
+
+      } catch (error) {
+        console.error('Error cargando estadísticas:', error);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', cargarEstadisticas);
+  </script>
+
+</body>
+</html>

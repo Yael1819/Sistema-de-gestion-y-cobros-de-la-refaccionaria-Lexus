@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Refaccionaria — Gestión de Productos</title>
+  <!-- Bootstrap 5 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { min-height:100vh; }
+    .sidebar { min-height:100vh; }
+    .table-wrap { max-height:420px; overflow:auto; }
+    .card-icon { font-size:28px; }
+    .btn-action { width: 35px; height: 35px; padding: 0; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-dark bg-dark px-3">
+    <a class="navbar-brand" href="#">
+      <i class="fas fa-car me-2"></i>Refaccionaria Lexus (demo)
+    </a>
+    <div class="d-flex align-items-center">
+      <input class="form-control form-control-sm me-2" type="search" placeholder="Buscar producto..." id="globalSearch">
+      <button class="btn btn-outline-light btn-sm" id="btnSearch">
+        <i class="fas fa-search"></i>
+      </button>
+    </div>
+  </nav>
+
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar (igual que el home) -->
+      <aside class="col-12 col-md-3 col-lg-2 p-3 bg-light sidebar">
+        <ul class="nav flex-column">
+          <li class="nav-item"><a class="nav-link" href="/src/Home.html"><i class="fas fa-home me-2"></i>Inicio</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Categorias/Categorias.html"><i class="fas fa-tags me-2"></i>Categorías</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Proveedores/Proovedores.html"><i class="fas fa-truck me-2"></i>Proveedores</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Clientes/Clientes.html"><i class="fas fa-users me-2"></i>Clientes</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Vehiculos/Vehiculos.html"><i class="fas fa-car me-2"></i>Vehículos</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Compatibilidad/Compatibilidad.html"><i class="fas fa-link me-2"></i>Compatibilidades</a></li>
+          <li class="nav-item"><a class="nav-link text-danger" href="/src/Ventas/Ventas.html"><i class="fas fa-shopping-cart me-2"></i>Ventas</a></li>
+        </ul>
+
+        <hr>
+        <div class="d-grid">
+          <button class="btn btn-primary btn-sm mb-2" data-bs-toggle="modal" data-bs-target="#modalAgregarProducto">
+            <i class="fas fa-plus me-1"></i>Agregar Producto
+          </button>
+          <button class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAgregarCategoria">
+            <i class="fas fa-plus me-1"></i>Agregar Categoría
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="col p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h2><i class="fas fa-box text-primary me-2"></i>Gestión de Productos</h2>
+          <div>
+            <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#modalAgregarProducto">
+              <i class="fas fa-plus"></i> Nuevo Producto
+            </button>
+            <button class="btn btn-outline-primary" onclick="refreshProductos()">
+              <i class="fas fa-sync-alt"></i> Actualizar
+            </button>
+          </div>
+        </div>
+
+        <!-- Tarjetas de estadísticas -->
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Total Productos</small>
+                  <h4 id="countProductos">—</h4>
+                </div>
+                <div class="card-icon text-primary">🧩</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Bajo Stock</small>
+                  <h4 id="countBajoStock" class="text-warning">—</h4>
+                </div>
+                <div class="card-icon text-warning">⚠️</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Valor Inventario</small>
+                  <h4 id="countValorInventario">—</h4>
+                </div>
+                <div class="card-icon text-success">💰</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Sin Stock</small>
+                  <h4 id="countSinStock" class="text-danger">—</h4>
+                </div>
+                <div class="card-icon text-danger">🔄</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Barra de herramientas -->
+        <div class="row mb-4">
+          <div class="col-md-8">
+            <div class="input-group">
+              <span class="input-group-text"><i class="fas fa-filter"></i></span>
+              <select class="form-select" id="filterCategoria">
+                <option value="">Todas las categorías</option>
+                <option value="2">Frenos</option>
+                <option value="3">Motor</option>
+                <option value="4">Suspensión</option>
+              </select>
+              <select class="form-select" id="filterStock">
+                <option value="">Todo el stock</option>
+                <option value="bajo">Bajo stock</option>
+                <option value="normal">Stock normal</option>
+                <option value="sin">Sin stock</option>
+              </select>
+              <button class="btn btn-outline-secondary" onclick="aplicarFiltros()">
+                <i class="fas fa-check"></i> Aplicar
+              </button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <select class="form-select" id="ordenarPor">
+              <option value="nombre">Ordenar por: Nombre</option>
+              <option value="precio_asc">Precio: Menor a Mayor</option>
+              <option value="precio_desc">Precio: Mayor a Menor</option>
+              <option value="stock_asc">Stock: Menor a Mayor</option>
+              <option value="stock_desc">Stock: Mayor a Menor</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Tabla de productos -->
+        <section id="productos" class="mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4>Lista de Productos</h4>
+            <span class="badge bg-primary" id="contadorProductos">0 productos</span>
+          </div>
+
+          <div class="table-wrap border rounded p-2 bg-white">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th width="50">ID</th>
+                  <th>Producto</th>
+                  <th>Marca</th>
+                  <th>N° Parte</th>
+                  <th>Precios</th>
+                  <th>Stock</th>
+                  <th>Categoría</th>
+                  <th>Proveedor</th>
+                  <th width="120">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tblProductos">
+                <!-- Los datos se cargarán aquí -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Paginación -->
+        <nav aria-label="Paginación de productos" class="mb-4">
+          <ul class="pagination justify-content-center">
+            <li class="page-item disabled">
+              <a class="page-link" href="#">Anterior</a>
+            </li>
+            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+            <li class="page-item"><a class="page-link" href="#">2</a></li>
+            <li class="page-item"><a class="page-link" href="#">3</a></li>
+            <li class="page-item">
+              <a class="page-link" href="#">Siguiente</a>
+            </li>
+          </ul>
+        </nav>
+
+        
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal: Agregar/Editar Producto (mejorado) -->
+  <div class="modal fade" id="modalAgregarProducto" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-box me-2"></i>Agregar Producto</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="formAgregarProducto">
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Nombre *</label>
+                <input name="nombre" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Marca</label>
+                <input name="marca" class="form-control" placeholder="Ej: Bosch, Fram, etc.">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Número de parte *</label>
+                <input name="numero_parte" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Modelo del producto</label>
+                <input name="modelo_producto" class="form-control">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Precio compra</label>
+                <div class="input-group">
+                  <span class="input-group-text">$</span>
+                  <input name="precio_compra" type="number" step="0.01" class="form-control" placeholder="0.00">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Precio venta *</label>
+                <div class="input-group">
+                  <span class="input-group-text">$</span>
+                  <input name="precio_venta" type="number" step="0.01" class="form-control" required>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Margen</label>
+                <input type="text" class="form-control bg-light" readonly id="margenCalculado" placeholder="Se calcula automáticamente">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Stock actual *</label>
+                <input name="stock_actual" type="number" class="form-control" required value="0">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Stock mínimo *</label>
+                <input name="stock_minimo" type="number" class="form-control" required value="5">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Estado stock</label>
+                <input type="text" class="form-control bg-light" readonly id="estadoStock" placeholder="Normal">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Categoría *</label>
+                <select name="id_categoria" class="form-select" required>
+                  <option value="">Seleccionar categoría...</option>
+                  <option value="1">Frenos</option>
+                  <option value="2">Motor</option>
+                  <option value="3">Suspensión</option>
+                  <option value="4">Transmisión</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Proveedor</label>
+                <select name="id_proveedor" class="form-select">
+                  <option value="">Seleccionar proveedor...</option>
+                  <option value="1">Proveedor A</option>
+                  <option value="2">Proveedor B</option>
+                  <option value="3">Proveedor C</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="activo" checked>
+                  <label class="form-check-label">
+                    Producto activo
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+              <i class="fas fa-times"></i> Cancelar
+            </button>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save"></i> Guardar producto
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Agregar Categoría -->
+  <div class="modal fade" id="modalAgregarCategoria" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-tag me-2"></i>Agregar Categoría</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="formAgregarCategoria">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Nombre *</label>
+              <input name="nombre" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Descripción</label>
+              <textarea name="descripcion" class="form-control" rows="3"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+              <i class="fas fa-times"></i> Cancelar
+            </button>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save"></i> Guardar categoría
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Ver Detalles -->
+  <div class="modal fade" id="modalDetalles" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-info-circle me-2"></i>Detalles del Producto</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="detallesContenido">
+          <!-- Contenido dinámico -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="Productos.js"></script>
+</body>
+</html>

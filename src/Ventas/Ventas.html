@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Refaccionaria — Gestión de Ventas</title>
+  <!-- Bootstrap 5 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { min-height:100vh; }
+    .sidebar { min-height:100vh; }
+    .table-wrap { max-height:420px; overflow:auto; }
+    .card-icon { font-size:28px; }
+    .btn-action { width: 35px; height: 35px; padding: 0; }
+    .sale-badge { 
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      margin-right: 5px;
+    }
+    .sale-card {
+      transition: transform 0.2s;
+    }
+    .sale-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .status-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+    }
+    .product-item {
+      border-bottom: 1px solid #eee;
+      padding: 8px 0;
+    }
+    .product-item:last-child {
+      border-bottom: none;
+    }
+    .total-display {
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+    .receipt {
+      font-family: 'Courier New', monospace;
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 5px;
+    }
+    
+    /* Estilos para autocompletado MEJORADOS */
+    .autocomplete {
+      position: relative;
+    }
+    .autocomplete-items {
+      position: absolute;
+      border: 1px solid #ddd;
+      border-bottom: none;
+      border-top: none;
+      z-index: 9999;
+      top: 100%;
+      left: 0;
+      right: 0;
+      max-height: 300px;
+      overflow-y: auto;
+      background-color: white;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      display: none;
+    }
+    .autocomplete-item {
+      padding: 10px;
+      cursor: pointer;
+      background-color: white;
+      border-bottom: 1px solid #eee;
+      transition: background-color 0.2s;
+    }
+    .autocomplete-item:hover {
+      background-color: #f8f9fa;
+    }
+    .autocomplete-item.nuevo-cliente {
+      background-color: #e8f4fd;
+      border-left: 3px solid #0d6efd;
+    }
+    .autocomplete-active {
+      background-color: #007bff !important;
+      color: #ffffff;
+    }
+    
+    .datetime-display {
+      font-size: 0.9rem;
+      color: #6c757d;
+    }
+    
+    .stock-bajo {
+      color: #dc3545;
+      font-weight: bold;
+    }
+    .stock-normal {
+      color: #28a745;
+    }
+    .producto-agotado {
+      opacity: 0.6;
+    }
+    
+    .btn-action {
+      width: 32px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    
+    .factura-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 10px 10px 0 0;
+    }
+    
+    .factura-totales {
+      background-color: #f8f9fa;
+      border-left: 4px solid #28a745;
+      padding: 15px;
+    }
+    
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    
+    .toast-container {
+      z-index: 1060;
+    }
+    
+    /* Estilos para información del cliente */
+    .cliente-info-card {
+      background: #f8f9fa;
+      border-left: 4px solid #0d6efd;
+      padding: 15px;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+    
+    /* Mejoras para tabla de ventas */
+    .table-ventas tbody tr:hover {
+      background-color: #f8f9fa;
+      cursor: pointer;
+    }
+    
+    /* Estilos para productos en venta */
+    .producto-venta-item {
+      background: white;
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      padding: 10px;
+      margin-bottom: 8px;
+      transition: all 0.2s;
+    }
+    
+    .producto-venta-item:hover {
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* Estilos para resumen de venta */
+    .resumen-venta-card {
+      position: sticky;
+      top: 20px;
+      background: white;
+      border: 2px solid #dee2e6;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    /* Estilos para modal de factura */
+    .modal-factura {
+      max-width: 95%;
+    }
+    
+    /* Mejoras responsivas */
+    @media (max-width: 768px) {
+      .sidebar {
+        min-height: auto;
+      }
+      .table-wrap {
+        max-height: 300px;
+      }
+      .resumen-venta-card {
+        position: static;
+        margin-top: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-dark bg-dark px-3">
+    <a class="navbar-brand" href="#">
+      <i class="fas fa-car me-2"></i>Refaccionaria Lexus (demo)
+    </a>
+    <div class="d-flex align-items-center">
+      <input class="form-control form-control-sm me-2" type="search" placeholder="Buscar venta..." id="globalSearch">
+      <button class="btn btn-outline-light btn-sm" id="btnSearch">
+        <i class="fas fa-search"></i>
+      </button>
+    </div>
+  </nav>
+
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <aside class="col-12 col-md-3 col-lg-2 p-3 bg-light sidebar">
+        <ul class="nav flex-column">
+          <li class="nav-item"><a class="nav-link" href="/src/Home.html"><i class="fas fa-home me-2"></i>Inicio</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Productos/Productos.html"><i class="fas fa-box me-2"></i>Productos</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Categorias/Categorias.html"><i class="fas fa-tags me-2"></i>Categorías</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Proveedores/Proovedores.html"><i class="fas fa-truck me-2"></i>Proveedores</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Clientes/Clientes.html"><i class="fas fa-users me-2"></i>Clientes</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Vehiculos/Vehiculos.html"><i class="fas fa-car me-2"></i>Vehículos</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Compatibilidad/Compatibilidad.html"><i class="fas fa-link me-2"></i>Compatibilidades</a></li>
+        </ul>
+
+        <hr>
+        <div class="d-grid">
+          <button class="btn btn-danger btn-sm mb-2" data-bs-toggle="modal" data-bs-target="#modalNuevaVenta">
+            <i class="fas fa-cash-register me-1"></i>Nueva Venta
+          </button>
+          <button class="btn btn-outline-primary btn-sm" onclick="refreshVentas()">
+            <i class="fas fa-sync-alt me-1"></i>Actualizar
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="col p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h2><i class="fas fa-shopping-cart text-danger me-2"></i>Gestión de Ventas</h2>
+          <div class="datetime-display">
+            <i class="fas fa-calendar me-1"></i><span id="fechaActual"></span>
+            <i class="fas fa-clock ms-3 me-1"></i><span id="horaActual"></span>
+          </div>
+        </div>
+
+        <!-- Tarjetas de estadísticas -->
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-md-3">
+            <div class="card p-3 sale-card">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Ventas Hoy</small>
+                  <h4 id="countVentasHoy" class="text-danger">—</h4>
+                </div>
+                <div class="card-icon text-danger">💰</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="card p-3 sale-card">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Total Mes</small>
+                  <h4 id="countVentasMes" class="text-success">—</h4>
+                </div>
+                <div class="card-icon text-success">📅</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="card p-3 sale-card">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Ticket Promedio</small>
+                  <h4 id="countTicketPromedio" class="text-info">—</h4>
+                </div>
+                <div class="card-icon text-info">📊</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="card p-3 sale-card">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Productos Vendidos</small>
+                  <h4 id="countProductosVendidos" class="text-warning">—</h4>
+                </div>
+                <div class="card-icon text-warning">📦</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filtros de ventas -->
+        <div class="row mb-4">
+          <div class="col-md-8">
+            <div class="input-group">
+              <span class="input-group-text"><i class="fas fa-filter"></i></span>
+              <input type="date" class="form-control" id="filterFechaDesde">
+              <input type="date" class="form-control" id="filterFechaHasta">
+              <select class="form-select" id="filterCliente">
+                <option value="">Todos los clientes</option>
+                <!-- Se cargarán dinámicamente -->
+              </select>
+              <button class="btn btn-outline-secondary" onclick="aplicarFiltros()">
+                <i class="fas fa-check"></i> Aplicar
+              </button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <select class="form-select" id="ordenarPor">
+              <option value="fecha_desc">Fecha: Más reciente</option>
+              <option value="fecha_asc">Fecha: Más antigua</option>
+              <option value="total_desc">Total: Mayor a menor</option>
+              <option value="total_asc">Total: Menor a mayor</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Tabla de ventas -->
+        <section id="ventas" class="mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4>Historial de Ventas</h4>
+            <div>
+              <button class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#modalNuevaVenta">
+                <i class="fas fa-cash-register"></i> Nueva Venta
+              </button>
+              <span class="badge bg-primary" id="contadorVentas">0 ventas</span>
+            </div>
+          </div>
+
+          <div class="table-wrap border rounded p-2 bg-white">
+            <table class="table table-sm table-hover mb-0 table-ventas">
+              <thead class="table-light">
+                <tr>
+                  <th width="60">ID</th>
+                  <th>Fecha y Hora</th>
+                  <th>Cliente</th>
+                  <th>Productos</th>
+                  <th>Total</th>
+                  <th>Estado</th>
+                  <th width="140">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tblVentas">
+                <!-- Los datos se cargarán aquí -->
+                <tr>
+                  <td colspan="7" class="text-center text-muted py-4">
+                    <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                    Cargando ventas...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Resumen del día -->
+        <section id="resumenDia" class="mb-4">
+          <h5><i class="fas fa-chart-line me-2"></i>Resumen del Día</h5>
+          <div class="row">
+            <div class="col-md-8">
+              <div class="card">
+                <div class="card-body">
+                  <div id="ventasPorHora" class="text-center text-muted py-4">
+                    <i class="fas fa-chart-bar fa-2x mb-2"></i><br>
+                    Gráfico de ventas por hora
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card">
+                <div class="card-body">
+                  <h6 class="card-title">Top Productos Hoy</h6>
+                  <div id="topProductosHoy" class="mt-2">
+                    <div class="text-center text-muted small py-3">
+                      <i class="fas fa-box-open me-1"></i>
+                      Cargando productos...
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Paginación -->
+        <nav aria-label="Paginación de ventas" class="mb-4">
+          <ul class="pagination justify-content-center">
+            <li class="page-item disabled">
+              <a class="page-link" href="#">Anterior</a>
+            </li>
+            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+            <li class="page-item"><a class="page-link" href="#">2</a></li>
+            <li class="page-item"><a class="page-link" href="#">3</a></li>
+            <li class="page-item">
+              <a class="page-link" href="#">Siguiente</a>
+            </li>
+          </ul>
+        </nav>
+
+        <!-- Atajos rápidos -->
+        <section id="resumen" class="mt-5">
+          <h5><i class="fas fa-bolt text-warning me-2"></i>Atajos</h5>
+          <div class="list-group">
+            <a href="#" class="list-group-item list-group-item-action" onclick="verVentasHoy()">
+              <i class="fas fa-calendar-day me-2"></i>Ver ventas de hoy
+            </a>
+            <a href="#" class="list-group-item list-group-item-action" onclick="verVentasMes()">
+              <i class="fas fa-calendar-alt me-2"></i>Ver ventas del mes
+            </a>
+            <a href="#" class="list-group-item list-group-item-action" onclick="diagnosticarSistema()">
+              <i class="fas fa-stethoscope me-2"></i>Diagnóstico del sistema
+            </a>
+            <a href="#" class="list-group-item list-group-item-action" onclick="reiniciarVenta()">
+              <i class="fas fa-redo me-2"></i>Reiniciar venta actual
+            </a>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal: Nueva Venta -->
+  <div class="modal fade" id="modalNuevaVenta" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title"><i class="fas fa-cash-register me-2"></i>Nueva Venta</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="formNuevaVenta">
+          <div class="modal-body">
+            <div class="row">
+              <!-- Panel izquierdo: Información de la venta -->
+              <div class="col-md-8">
+                <div class="row g-3">
+                  <!-- Información de fecha y hora automática -->
+                  <div class="col-md-6">
+                    <div class="card h-100">
+                      <div class="card-body">
+                        <h6 class="card-title"><i class="fas fa-calendar me-2"></i>Fecha y Hora</h6>
+                        <div class="mb-2">
+                          <strong>Fecha:</strong>
+                          <span id="fechaVentaDisplay" class="float-end">--/--/----</span>
+                        </div>
+                        <div class="mb-2">
+                          <strong>Hora:</strong>
+                          <span id="horaVentaDisplay" class="float-end">--:--</span>
+                        </div>
+                        <input type="hidden" id="fechaVenta" value="">
+                        <input type="hidden" id="horaVenta" value="">
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Información del cliente -->
+                  <div class="col-md-6">
+                    <div class="card h-100">
+                      <div class="card-body">
+                        <h6 class="card-title"><i class="fas fa-user me-2"></i>Información del Cliente</h6>
+                        <div class="mb-3">
+                          <label class="form-label">Buscar o crear cliente *</label>
+                          <div class="autocomplete">
+                            <input type="text" class="form-control" id="inputCliente" 
+                                   placeholder="Escribe el nombre del cliente..." required
+                                   autocomplete="off">
+                            <input type="hidden" id="idClienteSeleccionado" value="">
+                            <div id="autocompleteList" class="autocomplete-items"></div>
+                          </div>
+                          <small class="text-muted">Escribe al menos 2 letras para buscar clientes existentes o crear uno nuevo</small>
+                        </div>
+                        
+                        <!-- Información del cliente seleccionado -->
+                        <div id="infoCliente" class="d-none cliente-info-card">
+                          <div class="small">
+                            <div class="mb-1">
+                              <strong><i class="fas fa-user me-1"></i>Cliente seleccionado:</strong> 
+                              <span id="nombreClienteSeleccionado" class="fw-bold"></span>
+                            </div>
+                            <div class="mb-1">
+                              <strong><i class="fas fa-phone me-1"></i>Teléfono:</strong> 
+                              <span id="telefonoClienteSeleccionado"></span>
+                            </div>
+                            <div class="mb-1">
+                              <strong><i class="fas fa-envelope me-1"></i>Email:</strong> 
+                              <span id="emailClienteSeleccionado"></span>
+                            </div>
+                            <div id="direccionClienteSeleccionado" class="mb-1 d-none">
+                              <strong><i class="fas fa-map-marker-alt me-1"></i>Dirección:</strong> 
+                              <span id="valorDireccionCliente"></span>
+                            </div>
+                            <div id="rfcClienteSeleccionado" class="mb-2 d-none">
+                              <strong><i class="fas fa-id-card me-1"></i>RFC:</strong> 
+                              <span id="valorRFCCliente" class="text-success fw-bold"></span>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="cambiarCliente()">
+                              <i class="fas fa-sync-alt"></i> Cambiar cliente
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Búsqueda de productos -->
+                  <div class="col-12">
+                    <div class="card">
+                      <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-search me-2"></i>Buscar Productos</h6>
+                      </div>
+                      <div class="card-body">
+                        <div class="input-group mb-3">
+                          <input type="text" class="form-control" id="buscarProducto" 
+                                 placeholder="Buscar por nombre, marca o número de parte..." 
+                                 autocomplete="off">
+                          <button class="btn btn-outline-primary" type="button" onclick="buscarProductos()">
+                            <i class="fas fa-search"></i> Buscar
+                          </button>
+                          <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('buscarProducto').value=''; buscarProductos();">
+                            <i class="fas fa-times"></i> Limpiar
+                          </button>
+                        </div>
+                        <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                          <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                              <tr>
+                                <th>Producto</th>
+                                <th width="100">Precio</th>
+                                <th width="80">Stock</th>
+                                <th width="80">Acción</th>
+                              </tr>
+                            </thead>
+                            <tbody id="resultadosBusqueda">
+                              <tr>
+                                <td colspan="4" class="text-center text-muted py-3">
+                                  <i class="fas fa-search me-1"></i>
+                                  Ingresa un término para buscar productos
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Productos en la venta -->
+                  <div class="col-12">
+                    <div class="card">
+                      <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <h6 class="mb-0"><i class="fas fa-boxes me-2"></i>Productos en la Venta</h6>
+                          <span class="badge bg-primary" id="contadorProductos">0 productos</span>
+                        </div>
+                      </div>
+                      <div class="card-body">
+                        <div id="productosVenta" class="mb-3">
+                          <!-- Productos se agregarán aquí -->
+                        </div>
+                        <div class="alert alert-warning d-none" id="alertaSinProductos">
+                          <i class="fas fa-exclamation-triangle me-2"></i>
+                          No hay productos en la venta. Agrega productos usando el buscador arriba.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Panel derecho: Resumen y total -->
+              <div class="col-md-4">
+                <div class="resumen-venta-card">
+                  <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-receipt me-2"></i>Resumen de Venta</h6>
+                  </div>
+                  <div class="card-body">
+                    <div class="receipt">
+                      <div class="text-center mb-3">
+                        <h5 class="text-primary fw-bold">REFACCIONARIA LEXUS</h5>
+                        <p class="mb-0">Ticket de Venta</p>
+                        <small id="ticketFecha" class="text-muted">--/--/---- --:--</small>
+                      </div>
+                      
+                      <div id="resumenProductos" class="mb-3">
+                        <!-- Resumen de productos -->
+                      </div>
+                      
+                      <div class="border-top pt-2">
+                        <div class="d-flex justify-content-between">
+                          <span>Subtotal:</span>
+                          <span id="subtotal" class="fw-bold">$0.00</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                          <span>IVA (16%):</span>
+                          <span id="iva" class="fw-bold">$0.00</span>
+                        </div>
+                        <div class="d-flex justify-content-between total-display mt-2 pt-2 border-top">
+                          <span>TOTAL:</span>
+                          <span id="total" class="text-success">$0.00</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                      <label class="form-label">Método de Pago *</label>
+                      <select class="form-select" id="metodoPago" required>
+                        <option value="">Seleccionar método...</option>
+                        <option value="efectivo">Efectivo</option>
+                        <option value="tarjeta">Tarjeta de Crédito/Débito</option>
+                        <option value="transferencia">Transferencia</option>
+                        <option value="cheque">Cheque</option>
+                      </select>
+                    </div>
+                    
+                    <div class="mt-3" id="seccionEfectivo">
+                      <div class="mb-2">
+                        <label class="form-label">Pago con:</label>
+                        <div class="input-group">
+                          <span class="input-group-text">$</span>
+                          <input type="number" class="form-control" id="pagoCon" step="0.01" placeholder="0.00" min="0">
+                        </div>
+                      </div>
+                      <div class="mb-2">
+                        <label class="form-label">Cambio:</label>
+                        <div class="input-group">
+                          <span class="input-group-text">$</span>
+                          <input type="text" class="form-control" id="cambio" readonly placeholder="0.00">
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                      <label class="form-label">Notas de la venta</label>
+                      <textarea class="form-control" id="notasVenta" rows="2" placeholder="Notas adicionales..."></textarea>
+                    </div>
+                    
+                    <div class="mt-4 d-grid gap-2">
+                      <button type="submit" class="btn btn-danger btn-lg">
+                        <i class="fas fa-check-circle me-2"></i> Procesar Venta
+                      </button>
+                      <button type="button" class="btn btn-outline-secondary" onclick="reiniciarVenta()">
+                        <i class="fas fa-redo me-2"></i> Reiniciar Venta
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Nuevo Cliente -->
+  <div class="modal fade" id="modalNuevoCliente" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Crear Nuevo Cliente</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Nombre Completo *</label>
+              <input type="text" class="form-control" id="nuevoClienteNombre" required placeholder="Ej: Juan Pérez García">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Teléfono *</label>
+              <input type="text" class="form-control" id="nuevoClienteTelefono" required placeholder="Ej: 9511234567">
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-control" id="nuevoClienteEmail" placeholder="ejemplo@correo.com">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">RFC (Facturación)</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="nuevoClienteRFC" 
+                      placeholder="Ej: XAXX010101000" maxlength="13" style="text-transform: uppercase;">
+                <button type="button" class="btn btn-outline-secondary" 
+                        onclick="generarRFCDefault()" title="Generar RFC genérico">
+                  <i class="fas fa-magic"></i>
+                </button>
+              </div>
+              <small class="text-muted">Opcional para facturación (13 caracteres)</small>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Ciudad</label>
+              <input type="text" class="form-control" id="nuevoClienteCiudad" placeholder="Ej: Oaxaca">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Estado</label>
+              <input type="text" class="form-control" id="nuevoClienteEstado" placeholder="Ej: Oaxaca">
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Dirección</label>
+            <textarea class="form-control" id="nuevoClienteDireccion" rows="2" placeholder="Calle, número, colonia..."></textarea>
+          </div>
+          
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            Los campos marcados con * son obligatorios. El RFC es necesario para facturación fiscal.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times me-1"></i> Cancelar
+          </button>
+          <button type="button" class="btn btn-primary" onclick="crearNuevoCliente()">
+            <i class="fas fa-save me-1"></i> Crear Cliente
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Ver Detalles de Venta -->
+  <div class="modal fade" id="modalDetallesVenta" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-info text-white">
+          <h5 class="modal-title"><i class="fas fa-receipt me-2"></i>Detalles de Venta</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="detallesVentaContenido">
+          <!-- Contenido dinámico -->
+          <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p class="mt-3">Cargando detalles de venta...</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times me-1"></i> Cerrar
+          </button>
+          <button type="button" class="btn btn-primary" onclick="imprimirTicket()">
+            <i class="fas fa-print me-1"></i> Imprimir Ticket
+          </button>
+          <button type="button" class="btn btn-success" onclick="generarFacturaDesdeDetalles()">
+            <i class="fas fa-file-invoice me-1"></i> Generar Factura
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Factura (se creará dinámicamente) -->
+  <!-- Este modal se creará desde JavaScript -->
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="Ventas.js"></script>
+  
+  <!-- Script adicional para mejorar funcionalidad -->
+  <script>
+    // Configurar visibilidad de sección de efectivo
+    document.addEventListener('DOMContentLoaded', function() {
+      const metodoPagoSelect = document.getElementById('metodoPago');
+      const seccionEfectivo = document.getElementById('seccionEfectivo');
+      
+      if (metodoPagoSelect && seccionEfectivo) {
+        // Función para mostrar/ocultar sección de efectivo
+        function toggleSeccionEfectivo() {
+          if (metodoPagoSelect.value === 'efectivo') {
+            seccionEfectivo.style.display = 'block';
+            document.getElementById('pagoCon').focus();
+          } else {
+            seccionEfectivo.style.display = 'none';
+            document.getElementById('pagoCon').value = '';
+            document.getElementById('cambio').value = '';
+          }
+        }
+        
+        // Ejecutar al cargar y al cambiar
+        toggleSeccionEfectivo();
+        metodoPagoSelect.addEventListener('change', toggleSeccionEfectivo);
+      }
+      
+      // Configurar auto-focus en campo de búsqueda de cliente
+      const modalNuevaVenta = document.getElementById('modalNuevaVenta');
+      if (modalNuevaVenta) {
+        modalNuevaVenta.addEventListener('shown.bs.modal', function() {
+          setTimeout(() => {
+            const inputCliente = document.getElementById('inputCliente');
+            if (inputCliente) inputCliente.focus();
+          }, 300);
+        });
+      }
+      
+      // Configurar búsqueda global
+      const globalSearch = document.getElementById('globalSearch');
+      const btnSearch = document.getElementById('btnSearch');
+      
+      if (globalSearch && btnSearch) {
+        function ejecutarBusquedaGlobal() {
+          const termino = globalSearch.value.trim();
+          if (termino) {
+            alert('Función de búsqueda global en desarrollo. Término: ' + termino);
+            globalSearch.value = '';
+          }
+        }
+        
+        btnSearch.addEventListener('click', ejecutarBusquedaGlobal);
+        globalSearch.addEventListener('keypress', function(e) {
+          if (e.key === 'Enter') {
+            ejecutarBusquedaGlobal();
+          }
+        });
+      }
+    });
+    
+    // Función para abrir modal de nuevo cliente
+    function abrirModalNuevoCliente(nombre) {
+      if (nombre) {
+        document.getElementById('nuevoClienteNombre').value = nombre;
+      }
+      const modal = new bootstrap.Modal(document.getElementById('modalNuevoCliente'));
+      modal.show();
+    }
+  </script>
+</body>
+</html>

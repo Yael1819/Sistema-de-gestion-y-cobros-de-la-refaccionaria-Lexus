@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Refaccionaria — Gestión de Categorías</title>
+  <!-- Bootstrap 5 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { min-height:100vh; }
+    .sidebar { min-height:100vh; }
+    .table-wrap { max-height:420px; overflow:auto; }
+    .card-icon { font-size:28px; }
+    .btn-action { width: 35px; height: 35px; padding: 0; }
+    .category-badge { 
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-dark bg-dark px-3">
+    <a class="navbar-brand" href="/">
+      <i class="fas fa-car me-2"></i>Refaccionaria Lexus (demo)
+    </a>
+    <div class="d-flex align-items-center">
+      <input class="form-control form-control-sm me-2" type="search" placeholder="Buscar categoría..." id="globalSearch">
+      <button class="btn btn-outline-light btn-sm" id="btnSearch">
+        <i class="fas fa-search"></i>
+      </button>
+    </div>
+  </nav>
+
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <aside class="col-12 col-md-3 col-lg-2 p-3 bg-light sidebar">
+        <ul class="nav flex-column">
+          <li class="nav-item"><a class="nav-link" href="/src/Home.html"><i class="fas fa-home me-2"></i>Inicio</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Productos/Productos.html"><i class="fas fa-box me-2"></i>Productos</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Proveedores/Proovedores.html"><i class="fas fa-truck me-2"></i>Proveedores</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Clientes/Clientes.html"><i class="fas fa-users me-2"></i>Clientes</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Vehiculos/Vehiculos.html"><i class="fas fa-car me-2"></i>Vehículos</a></li>
+          <li class="nav-item"><a class="nav-link text-danger" href="/src/Ventas/Ventas.html"><i class="fas fa-shopping-cart me-2"></i>Ventas</a></li>
+        </ul>
+        <hr>
+        <div class="d-grid">
+          <button class="btn btn-primary btn-sm mb-2" data-bs-toggle="modal" data-bs-target="#modalAgregarCategoria">
+            <i class="fas fa-plus me-1"></i>Agregar Categoría
+          </button>
+          <button class="btn btn-outline-primary btn-sm" onclick="refreshCategorias()">
+            <i class="fas fa-sync-alt me-1"></i>Actualizar
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="col p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h2><i class="fas fa-tags text-primary me-2"></i>Gestión de Categorías</h2>
+          <div>
+            <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#modalAgregarCategoria">
+              <i class="fas fa-plus"></i> Nueva Categoría
+            </button>
+            <button class="btn btn-outline-primary" onclick="refreshCategorias()">
+              <i class="fas fa-sync-alt"></i> Actualizar
+            </button>
+          </div>
+        </div>
+
+        <!-- Tarjetas de estadísticas -->
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Total Categorías</small>
+                  <h4 id="countCategorias">—</h4>
+                </div>
+                <div class="card-icon text-primary">📁</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Con Productos</small>
+                  <h4 id="countConProductos" class="text-success">—</h4>
+                </div>
+                <div class="card-icon text-success">📦</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Sin Productos</small>
+                  <h4 id="countSinProductos" class="text-warning">—</h4>
+                </div>
+                <div class="card-icon text-warning">⚠️</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <div class="card p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted">Activas</small>
+                  <h4 id="countActivas" class="text-info">—</h4>
+                </div>
+                <div class="card-icon text-info">✅</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Barra de herramientas -->
+        <div class="row mb-4">
+          <div class="col-md-8">
+            <div class="input-group">
+              <span class="input-group-text"><i class="fas fa-filter"></i></span>
+              <select class="form-select" id="filterEstado">
+                <option value="">Todas las categorías</option>
+                <option value="con_productos">Con productos</option>
+                <option value="sin_productos">Sin productos</option>
+                <option value="activas">Solo activas</option>
+                <option value="inactivas">Solo inactivas</option>
+              </select>
+              <button class="btn btn-outline-secondary" onclick="aplicarFiltros()">
+                <i class="fas fa-check"></i> Aplicar
+              </button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <select class="form-select" id="ordenarPor">
+              <option value="nombre">Ordenar por: Nombre</option>
+              <option value="productos_desc">Productos: Mayor a Menor</option>
+              <option value="productos_asc">Productos: Menor a Mayor</option>
+              <option value="id_desc">ID: Mayor a Menor</option>
+              <option value="id_asc">ID: Menor a Mayor</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Tabla de categorías -->
+        <section id="categorias" class="mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4>Lista de Categorías</h4>
+            <span class="badge bg-primary" id="contadorCategorias">0 categorías</span>
+          </div>
+
+          <div class="table-wrap border rounded p-2 bg-white">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th width="60">ID</th>
+                  <th>Categoría</th>
+                  <th>Descripción</th>
+                  <th>Productos</th>
+                  <th>Valor Stock</th>
+                  <th>Estado</th>
+                  <th width="120">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tblCategorias">
+                <tr>
+                  <td colspan="7" class="text-center">
+                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                    Cargando categorías...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Atajos rápidos -->
+        <section id="resumen" class="mt-5">
+          <h5><i class="fas fa-bolt text-warning me-2"></i>Atajos</h5>
+          <div class="list-group">
+            <a href="../Productos/Productos.html" class="list-group-item list-group-item-action">
+              <i class="fas fa-box me-2"></i>Ver todos los productos
+            </a>
+            
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal: Agregar/Editar Categoría -->
+  <div class="modal fade" id="modalAgregarCategoria" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-tag me-2"></i>Agregar Categoría</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="formAgregarCategoria">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Nombre *</label>
+              <input name="nombre" class="form-control" required placeholder="Ej: Frenos, Motor, Suspensión">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Descripción</label>
+              <textarea name="descripcion" class="form-control" rows="3" placeholder="Descripción breve de la categoría"></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Color identificador</label>
+              <div class="d-flex gap-2">
+                <div class="color-option" data-color="#3498db" onclick="seleccionarColor('#3498db')" style="width:30px;height:30px;background:#3498db;border-radius:50%;cursor:pointer;border:2px solid #ddd;"></div>
+                <div class="color-option" data-color="#2ecc71" onclick="seleccionarColor('#2ecc71')" style="width:30px;height:30px;background:#2ecc71;border-radius:50%;cursor:pointer;border:2px solid #ddd;"></div>
+                <div class="color-option" data-color="#e74c3c" onclick="seleccionarColor('#e74c3c')" style="width:30px;height:30px;background:#e74c3c;border-radius:50%;cursor:pointer;border:2px solid #ddd;"></div>
+                <div class="color-option" data-color="#f39c12" onclick="seleccionarColor('#f39c12')" style="width:30px;height:30px;background:#f39c12;border-radius:50%;cursor:pointer;border:2px solid #ddd;"></div>
+                <div class="color-option" data-color="#9b59b6" onclick="seleccionarColor('#9b59b6')" style="width:30px;height:30px;background:#9b59b6;border-radius:50%;cursor:pointer;border:2px solid #ddd;"></div>
+              </div>
+              <input type="hidden" name="color" id="colorSeleccionado" value="#3498db">
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="activa" checked>
+              <label class="form-check-label">
+                Categoría activa
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+              <i class="fas fa-times"></i> Cancelar
+            </button>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save"></i> Guardar categoría
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Ver Detalles de Categoría -->
+  <div class="modal fade" id="modalDetalles" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-info-circle me-2"></i>Detalles de Categoría</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="detallesContenido">
+          <!-- Contenido dinámico -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> Cerrar
+          </button>
+          <button type="button" class="btn btn-primary" onclick="editarCategoriaDesdeDetalles()">
+            <i class="fas fa-edit"></i> Editar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- IMPORTANTE: Ruta corregida para el archivo JS -->
+<script src="/src/Categorias/Categorias.js"></script>
+
+</body>
+</html>

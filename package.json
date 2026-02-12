@@ -1,0 +1,18 @@
+{
+  "name": "refaccionaria",
+  "version": "1.0.0",
+  "description": "Sistema de gestión para refaccionaria",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "4.17.1",
+    "mysql2": "2.3.3",
+    "cors": "2.8.5"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
