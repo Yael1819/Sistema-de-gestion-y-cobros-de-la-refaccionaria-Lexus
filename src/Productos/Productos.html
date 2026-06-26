@@ -9,32 +9,75 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    body { min-height:100vh; }
+    body { min-height:100vh; background-color: #f8f9fa; }
     .sidebar { min-height:100vh; }
     .table-wrap { max-height:420px; overflow:auto; }
     .card-icon { font-size:28px; }
     .btn-action { width: 35px; height: 35px; padding: 0; }
+    .pagination { margin-bottom: 0; }
+    /* Estilo para notificaciones flotantes */
+    .toast-notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      min-width: 300px;
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    /* Estilo para campos inválidos */
+    .is-invalid-custom {
+      border-color: #dc3545 !important;
+      background-color: #fff0f0 !important;
+    }
+    .is-valid-custom {
+      border-color: #198754 !important;
+      background-color: #f0fff0 !important;
+    }
   </style>
 </head>
 <body>
-  <nav class="navbar navbar-dark bg-dark px-3">
-    <a class="navbar-brand" href="#">
-      <i class="fas fa-car me-2"></i>Refaccionaria Lexus (demo)
+  <!-- NAVBAR igual que el home -->
+  <nav class="navbar navbar-dark bg-primary px-3 d-flex justify-content-between align-items-center">
+    <a class="navbar-brand fw-bold" href="/src/Home.html">
+      <i class="fas fa-car-alt me-2"></i>Refaccionaria Lexus
     </a>
-    <div class="d-flex align-items-center">
-      <input class="form-control form-control-sm me-2" type="search" placeholder="Buscar producto..." id="globalSearch">
-      <button class="btn btn-outline-light btn-sm" id="btnSearch">
-        <i class="fas fa-search"></i>
+    <div class="d-flex align-items-center gap-3">
+      <!-- Buscador -->
+      <div class="d-flex align-items-center">
+        <input class="form-control form-control-sm me-2" type="search" placeholder="Buscar producto..." id="globalSearch" style="width: 250px;">
+        <button class="btn btn-outline-light btn-sm" id="btnSearch">
+          <i class="fas fa-search"></i>
+        </button>
+      </div>
+      <!-- Información del usuario -->
+      <span class="text-white small">
+        <i class="fas fa-user-circle me-1"></i>
+        <span id="navUsuarioNombre">—</span>
+        <span class="badge bg-light text-primary ms-1" id="navUsuarioRol">—</span>
+      </span>
+      <button class="btn btn-outline-light btn-sm" onclick="cerrarSesion()">
+        <i class="fas fa-sign-out-alt me-1"></i>Cerrar sesión
       </button>
     </div>
   </nav>
 
   <div class="container-fluid">
     <div class="row">
-      <!-- Sidebar (igual que el home) -->
+      <!-- Sidebar -->
       <aside class="col-12 col-md-3 col-lg-2 p-3 bg-light sidebar">
         <ul class="nav flex-column">
           <li class="nav-item"><a class="nav-link" href="/src/Home.html"><i class="fas fa-home me-2"></i>Inicio</a></li>
+          <li class="nav-item"><a class="nav-link active" href="/src/Productos/Productos.html"><i class="fas fa-box me-2"></i>Productos</a></li>
           <li class="nav-item"><a class="nav-link" href="/src/Categorias/Categorias.html"><i class="fas fa-tags me-2"></i>Categorías</a></li>
           <li class="nav-item"><a class="nav-link" href="/src/Proveedores/Proovedores.html"><i class="fas fa-truck me-2"></i>Proveedores</a></li>
           <li class="nav-item"><a class="nav-link" href="/src/Clientes/Clientes.html"><i class="fas fa-users me-2"></i>Clientes</a></li>
@@ -42,16 +85,7 @@
           <li class="nav-item"><a class="nav-link" href="/src/Compatibilidad/Compatibilidad.html"><i class="fas fa-link me-2"></i>Compatibilidades</a></li>
           <li class="nav-item"><a class="nav-link text-danger" href="/src/Ventas/Ventas.html"><i class="fas fa-shopping-cart me-2"></i>Ventas</a></li>
         </ul>
-
         <hr>
-        <div class="d-grid">
-          <button class="btn btn-primary btn-sm mb-2" data-bs-toggle="modal" data-bs-target="#modalAgregarProducto">
-            <i class="fas fa-plus me-1"></i>Agregar Producto
-          </button>
-          <button class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAgregarCategoria">
-            <i class="fas fa-plus me-1"></i>Agregar Categoría
-          </button>
-        </div>
       </aside>
 
       <!-- Main Content -->
@@ -126,9 +160,6 @@
               <span class="input-group-text"><i class="fas fa-filter"></i></span>
               <select class="form-select" id="filterCategoria">
                 <option value="">Todas las categorías</option>
-                <option value="2">Frenos</option>
-                <option value="3">Motor</option>
-                <option value="4">Suspensión</option>
               </select>
               <select class="form-select" id="filterStock">
                 <option value="">Todo el stock</option>
@@ -181,28 +212,22 @@
           </div>
         </section>
 
-        <!-- Paginación -->
-        <nav aria-label="Paginación de productos" class="mb-4">
-          <ul class="pagination justify-content-center">
-            <li class="page-item disabled">
-              <a class="page-link" href="#">Anterior</a>
-            </li>
-            <li class="page-item active"><a class="page-link" href="#">1</a></li>
-            <li class="page-item"><a class="page-link" href="#">2</a></li>
-            <li class="page-item"><a class="page-link" href="#">3</a></li>
-            <li class="page-item">
-              <a class="page-link" href="#">Siguiente</a>
-            </li>
-          </ul>
-        </nav>
-
-        
+        <!-- Paginación centrada -->
+        <div class="row">
+          <div class="col-12 text-center">
+            <nav aria-label="Paginación de productos">
+              <ul class="pagination justify-content-center" id="pagination">
+                <!-- Los botones de paginación se generarán dinámicamente con JavaScript -->
+              </ul>
+            </nav>
+          </div>
+        </div>
 
       </main>
     </div>
   </div>
 
-  <!-- Modal: Agregar/Editar Producto (mejorado) -->
+  <!-- Modal: Agregar/Editar Producto -->
   <div class="modal fade" id="modalAgregarProducto" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
@@ -230,17 +255,17 @@
                 <input name="modelo_producto" class="form-control">
               </div>
               <div class="col-md-4">
-                <label class="form-label">Precio compra</label>
+                <label class="form-label">Precio compra *</label>
                 <div class="input-group">
                   <span class="input-group-text">$</span>
-                  <input name="precio_compra" type="number" step="0.01" class="form-control" placeholder="0.00">
+                  <input name="precio_compra" type="number" step="0.01" min="0" class="form-control" placeholder="0.00" required>
                 </div>
               </div>
               <div class="col-md-4">
                 <label class="form-label">Precio venta *</label>
                 <div class="input-group">
                   <span class="input-group-text">$</span>
-                  <input name="precio_venta" type="number" step="0.01" class="form-control" required>
+                  <input name="precio_venta" type="number" step="0.01" min="0" class="form-control" required>
                 </div>
               </div>
               <div class="col-md-4">
@@ -249,11 +274,11 @@
               </div>
               <div class="col-md-4">
                 <label class="form-label">Stock actual *</label>
-                <input name="stock_actual" type="number" class="form-control" required value="0">
+                <input name="stock_actual" type="number" min="0" class="form-control" required value="0">
               </div>
               <div class="col-md-4">
                 <label class="form-label">Stock mínimo *</label>
-                <input name="stock_minimo" type="number" class="form-control" required value="5">
+                <input name="stock_minimo" type="number" min="0" class="form-control" required value="5">
               </div>
               <div class="col-md-4">
                 <label class="form-label">Estado stock</label>
@@ -263,19 +288,12 @@
                 <label class="form-label">Categoría *</label>
                 <select name="id_categoria" class="form-select" required>
                   <option value="">Seleccionar categoría...</option>
-                  <option value="1">Frenos</option>
-                  <option value="2">Motor</option>
-                  <option value="3">Suspensión</option>
-                  <option value="4">Transmisión</option>
                 </select>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Proveedor</label>
                 <select name="id_proveedor" class="form-select">
                   <option value="">Seleccionar proveedor...</option>
-                  <option value="1">Proveedor A</option>
-                  <option value="2">Proveedor B</option>
-                  <option value="3">Proveedor C</option>
                 </select>
               </div>
               <div class="col-12">
@@ -292,7 +310,7 @@
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
               <i class="fas fa-times"></i> Cancelar
             </button>
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary" id="btnGuardarProducto">
               <i class="fas fa-save"></i> Guardar producto
             </button>
           </div>

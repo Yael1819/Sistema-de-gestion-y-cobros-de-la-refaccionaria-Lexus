@@ -9,22 +9,31 @@
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    body { min-height:100vh; }
+    body { min-height:100vh; background-color: #f8f9fa; }
     .sidebar { min-height:100vh; }
     .table-wrap { max-height:420px; overflow:auto; }
     .card-icon { font-size:28px; }
     .btn-action { width: 35px; height: 35px; padding: 0; }
+    .pagination { margin-bottom: 0; }
   </style>
 </head>
 <body>
-  <nav class="navbar navbar-dark bg-dark px-3">
-    <a class="navbar-brand" href="#">
-      <i class="fas fa-car me-2"></i>Refaccionaria Lexus (demo)
+  <!-- NAVBAR igual que el home -->
+  <nav class="navbar navbar-dark bg-primary px-3 d-flex justify-content-between align-items-center">
+    <a class="navbar-brand fw-bold" href="/src/Home.html">
+      <i class="fas fa-car-alt me-2"></i>Refaccionaria Lexus
     </a>
-    <div class="d-flex align-items-center">
-      <input class="form-control form-control-sm me-2" type="search" placeholder="Buscar proveedor..." id="globalSearch">
-      <button class="btn btn-outline-light btn-sm" id="btnSearch">
-        <i class="fas fa-search"></i>
+    <div class="d-flex align-items-center gap-3">
+      <!-- Buscador -->
+     
+      <!-- Información del usuario -->
+      <span class="text-white small">
+        <i class="fas fa-user-circle me-1"></i>
+        <span id="navUsuarioNombre">—</span>
+        <span class="badge bg-light text-primary ms-1" id="navUsuarioRol">—</span>
+      </span>
+      <button class="btn btn-outline-light btn-sm" onclick="cerrarSesion()">
+        <i class="fas fa-sign-out-alt me-1"></i>Cerrar sesión
       </button>
     </div>
   </nav>
@@ -37,21 +46,13 @@
           <li class="nav-item"><a class="nav-link" href="/src/Home.html"><i class="fas fa-home me-2"></i>Inicio</a></li>
           <li class="nav-item"><a class="nav-link" href="/src/Productos/Productos.html"><i class="fas fa-box me-2"></i>Productos</a></li>
           <li class="nav-item"><a class="nav-link" href="/src/Categorias/Categorias.html"><i class="fas fa-tags me-2"></i>Categorías</a></li>
+          <li class="nav-item"><a class="nav-link active" href="/src/Proveedores/Proovedores.html"><i class="fas fa-truck me-2"></i>Proveedores</a></li>
           <li class="nav-item"><a class="nav-link" href="/src/Clientes/Clientes.html"><i class="fas fa-users me-2"></i>Clientes</a></li>
           <li class="nav-item"><a class="nav-link" href="/src/Vehiculos/Vehiculos.html"><i class="fas fa-car me-2"></i>Vehículos</a></li>
           <li class="nav-item"><a class="nav-link" href="/src/Compatibilidad/Compatibilidad.html"><i class="fas fa-link me-2"></i>Compatibilidades</a></li>
           <li class="nav-item"><a class="nav-link text-danger" href="/src/Ventas/Ventas.html"><i class="fas fa-shopping-cart me-2"></i>Ventas</a></li>
         </ul>
-
         <hr>
-        <div class="d-grid">
-          <button class="btn btn-primary btn-sm mb-2" data-bs-toggle="modal" data-bs-target="#modalAgregarProveedor">
-            <i class="fas fa-plus me-1"></i>Agregar Proveedor
-          </button>
-          <button class="btn btn-outline-primary btn-sm" onclick="refreshProveedores()">
-            <i class="fas fa-sync-alt me-1"></i>Actualizar
-          </button>
-        </div>
       </aside>
 
       <!-- Main Content -->
@@ -100,7 +101,7 @@
           <div class="col-md-8">
             <div class="input-group">
               <span class="input-group-text"><i class="fas fa-search"></i></span>
-              <input type="text" class="form-control" placeholder="Buscar por nombre, contacto, teléfono o dirección..." id="globalSearch">
+              <input type="text" class="form-control" placeholder="Buscar por nombre, contacto, teléfono o dirección..." id="globalSearchInput">
               <button class="btn btn-outline-primary" onclick="buscarProveedores()">
                 <i class="fas fa-search"></i> Buscar
               </button>
@@ -135,11 +136,22 @@
           </div>
         </section>
 
+        <!-- Paginación centrada -->
+        <div class="row">
+          <div class="col-12 text-center">
+            <nav aria-label="Paginación de proveedores">
+              <ul class="pagination justify-content-center" id="pagination">
+                <!-- Los botones de paginación se generarán dinámicamente con JavaScript -->
+              </ul>
+            </nav>
+          </div>
+        </div>
+
       </main>
     </div>
   </div>
 
-  <!-- Modal: Agregar/Editar Proveedor SIMPLIFICADO -->
+  <!-- Modal: Agregar/Editar Proveedor -->
   <div class="modal fade" id="modalAgregarProveedor" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
       <div class="modal-content">

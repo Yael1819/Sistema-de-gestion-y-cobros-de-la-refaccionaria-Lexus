@@ -3,6 +3,286 @@
 // ============================
 let proveedoresData = [];
 let proveedorEditandoId = null;
+let proveedorDetalleId = null;
+
+// Variables para paginación - 5 proveedores por página
+let currentPage = 1;
+const itemsPerPage = 5;
+let filteredProveedores = [];
+
+// ============================
+// Funciones de sesión (igual que el home)
+// ============================
+function cargarUsuario() {
+  const isLoggedIn  = sessionStorage.getItem('is_logged_in');
+  const timestamp   = sessionStorage.getItem('login_timestamp');
+
+  // Verificar si la sesión sigue vigente (8 horas)
+  if (isLoggedIn !== 'true' || !timestamp) {
+    // Intentar con localStorage (Login.html inline guarda 'usuarioActual')
+    const rawLocal = localStorage.getItem('usuarioActual');
+    if (rawLocal) {
+      try {
+        const u = JSON.parse(rawLocal);
+        const nombreElement = document.getElementById('navUsuarioNombre');
+        const rolElement = document.getElementById('navUsuarioRol');
+        if (nombreElement) nombreElement.textContent = u.nombre || 'Usuario';
+        if (rolElement) rolElement.textContent = u.rol || '';
+        return;
+      } catch(e) {}
+    }
+    window.location.href = '/src/Login/Login.html';
+    return;
+  }
+
+  const ocho_horas = 8 * 60 * 60 * 1000;
+  if (Date.now() - parseInt(timestamp) > ocho_horas) {
+    sessionStorage.clear();
+    window.location.href = '/src/Login/Login.html';
+    return;
+  }
+
+  // Leer datos del sessionStorage (claves de Login.js)
+  const nombre = sessionStorage.getItem('user_name')  || 'Usuario';
+  const rol    = sessionStorage.getItem('user_role')  || '';
+
+  const nombreElement = document.getElementById('navUsuarioNombre');
+  const rolElement = document.getElementById('navUsuarioRol');
+  if (nombreElement) nombreElement.textContent = nombre;
+  if (rolElement) rolElement.textContent = rol;
+}
+
+function cerrarSesion() {
+  sessionStorage.clear();
+  localStorage.removeItem('usuarioActual');
+  window.location.href = '/src/Login/Login.html';
+}
+
+// ============================
+// Funciones auxiliares
+// ============================
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function mostrarNotificacion(mensaje, tipo = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-bg-${tipo} border-0 position-fixed bottom-0 end-0 m-3`;
+    toast.style.zIndex = '1055';
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${mensaje}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    document.body.appendChild(toast);
+    
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    toast.addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
+}
+
+function mostrarError(mensaje) {
+    console.error('Mostrando error:', mensaje);
+    
+    const tbody = document.getElementById('tblProveedores');
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${mensaje}
+                </td>
+            </tr>
+        `;
+    }
+    
+    const contador = document.getElementById('contadorProveedores');
+    if (contador) {
+        contador.textContent = 'Error al cargar';
+    }
+}
+
+// ============================
+// Renderizar controles de paginación centrados
+// ============================
+function renderPagination() {
+    const paginationContainer = document.getElementById('pagination');
+    if (!paginationContainer) return;
+    
+    const totalPages = Math.ceil(filteredProveedores.length / itemsPerPage);
+    
+    if (totalPages <= 1) {
+        paginationContainer.innerHTML = '';
+        return;
+    }
+    
+    let paginationHtml = '';
+    
+    // Botón Anterior
+    paginationHtml += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">
+                <i class="fas fa-chevron-left"></i> Anterior
+            </a>
+        </li>
+    `;
+    
+    // Calcular qué páginas mostrar (máximo 5)
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
+    
+    if (endPage - startPage < 4) {
+        startPage = Math.max(1, endPage - 4);
+    }
+    
+    // Primera página si no está visible
+    if (startPage > 1) {
+        paginationHtml += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="changePage(1); return false;">1</a>
+            </li>
+        `;
+        if (startPage > 2) {
+            paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+    
+    // Páginas numeradas
+    for (let i = startPage; i <= endPage; i++) {
+        paginationHtml += `
+            <li class="page-item ${currentPage === i ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>
+            </li>
+        `;
+    }
+    
+    // Última página si no está visible
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+        paginationHtml += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="changePage(${totalPages}); return false;">${totalPages}</a>
+            </li>
+        `;
+    }
+    
+    // Botón Siguiente
+    paginationHtml += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">
+                Siguiente <i class="fas fa-chevron-right"></i>
+            </a>
+        </li>
+    `;
+    
+    paginationContainer.innerHTML = paginationHtml;
+}
+
+// ============================
+// Cambiar de página
+// ============================
+function changePage(page) {
+    const totalPages = Math.ceil(filteredProveedores.length / itemsPerPage);
+    
+    if (page < 1 || page > totalPages) {
+        return;
+    }
+    
+    currentPage = page;
+    mostrarProveedores(filteredProveedores, false);
+}
+
+// ============================
+// Mostrar proveedores en la tabla (con paginación)
+// ============================
+function mostrarProveedores(proveedores, resetPage = true) {
+    const tbody = document.getElementById('tblProveedores');
+    const contador = document.getElementById('contadorProveedores');
+    
+    if (!tbody || !contador) return;
+    
+    // Guardar proveedores filtrados
+    filteredProveedores = proveedores;
+    
+    // Resetear a primera página si es necesario
+    if (resetPage) {
+        currentPage = 1;
+    }
+    
+    console.log('Mostrando proveedores - Total:', filteredProveedores.length, 'Página:', currentPage);
+    
+    if (filteredProveedores.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center text-muted py-4">
+                    <i class="fas fa-truck fa-2x mb-2"></i><br>
+                    No hay proveedores registrados
+                </td>
+            </tr>
+        `;
+        contador.textContent = '0 proveedores';
+        renderPagination();
+        return;
+    }
+    
+    // Calcular índices para la página actual (5 proveedores por página)
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const proveedoresPagina = filteredProveedores.slice(startIndex, endIndex);
+    
+    // Actualizar contador
+    const totalMostrados = Math.min(endIndex, filteredProveedores.length);
+    contador.textContent = `${filteredProveedores.length} proveedores (Mostrando ${startIndex + 1}-${totalMostrados})`;
+    
+    tbody.innerHTML = proveedoresPagina.map(p => {
+        return `
+            <tr>
+                <td><span class="badge bg-secondary">${p.id_proveedor}</span></td>
+                <td>
+                    <div class="fw-bold">${escapeHtml(p.nombre) || 'Sin nombre'}</div>
+                    <small class="text-muted">${escapeHtml(p.contacto) || 'Sin contacto'}</small>
+                </div>
+                <td>${escapeHtml(p.contacto) || '—'}</div>
+                <td>
+                    ${p.telefono ? `<a href="tel:${p.telefono}" class="text-decoration-none">
+                        <i class="fas fa-phone me-1"></i>${escapeHtml(p.telefono)}
+                    </a>` : '—'}
+                </div>
+                <td>
+                    ${p.email ? `<a href="mailto:${p.email}" class="text-decoration-none">
+                        <i class="fas fa-envelope me-1"></i>${escapeHtml(p.email)}
+                    </a>` : '—'}
+                </div>
+                <td>${escapeHtml(p.direccion) || '—'}</div>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-info btn-action" onclick="verDetalles(${p.id_proveedor})" title="Ver detalles">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-outline-warning btn-action" onclick="editarProveedor(${p.id_proveedor})" title="Editar">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-outline-danger btn-action" onclick="eliminarProveedor(${p.id_proveedor})" title="Eliminar">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </tr>
+        `;
+    }).join('');
+    
+    // Renderizar controles de paginación
+    renderPagination();
+}
 
 // ============================
 // Cargar datos iniciales
@@ -63,73 +343,11 @@ function calcularEstadisticas() {
     const total = proveedoresData.length;
     const totalProductos = proveedoresData.reduce((sum, p) => sum + (p.productos_count || 0), 0);
     
-    document.getElementById('countProveedores').textContent = total;
-    document.getElementById('countProductos').textContent = totalProductos;
-    document.getElementById('contadorProveedores').textContent = `${total} proveedores`;
-}
-
-// ============================
-// Mostrar proveedores en la tabla
-// ============================
-function mostrarProveedores(proveedores) {
-    const tbody = document.getElementById('tblProveedores');
-    const contador = document.getElementById('contadorProveedores');
+    const countProveedores = document.getElementById('countProveedores');
+    const countProductos = document.getElementById('countProductos');
     
-    if (!tbody || !contador) return;
-    
-    console.log('Mostrando proveedores:', proveedores.length);
-    
-    if (proveedores.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="text-center text-muted py-4">
-                    <i class="fas fa-truck fa-2x mb-2"></i><br>
-                    No hay proveedores registrados
-                </td>
-            </tr>
-        `;
-        contador.textContent = '0 proveedores';
-        return;
-    }
-    
-    contador.textContent = `${proveedores.length} proveedores`;
-    
-    tbody.innerHTML = proveedores.map(p => {
-        return `
-            <tr>
-                <td><span class="badge bg-secondary">${p.id_proveedor}</span></td>
-                <td>
-                    <div class="fw-bold">${p.nombre || 'Sin nombre'}</div>
-                    <small class="text-muted">${p.contacto || 'Sin contacto'}</small>
-                </td>
-                <td>${p.contacto || '—'}</td>
-                <td>
-                    ${p.telefono ? `<a href="tel:${p.telefono}" class="text-decoration-none">
-                        <i class="fas fa-phone me-1"></i>${p.telefono}
-                    </a>` : '—'}
-                </td>
-                <td>
-                    ${p.email ? `<a href="mailto:${p.email}" class="text-decoration-none">
-                        <i class="fas fa-envelope me-1"></i>${p.email}
-                    </a>` : '—'}
-                </td>
-                <td>${p.direccion || '—'}</td>
-                <td>
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-info btn-action" onclick="verDetalles(${p.id_proveedor})" title="Ver detalles">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        <button class="btn btn-outline-warning btn-action" onclick="editarProveedor(${p.id_proveedor})" title="Editar">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-outline-danger btn-action" onclick="eliminarProveedor(${p.id_proveedor})" title="Eliminar">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `;
-    }).join('');
+    if (countProveedores) countProveedores.textContent = total;
+    if (countProductos) countProductos.textContent = totalProductos;
 }
 
 // ============================
@@ -142,10 +360,12 @@ async function verDetalles(id) {
             const response = await fetch(`/api/proveedores/${id}`);
             if (!response.ok) throw new Error('Proveedor no encontrado');
             const proveedorDetalle = await response.json();
+            proveedorDetalleId = id;
             mostrarDetallesModal(proveedorDetalle);
             return;
         }
         
+        proveedorDetalleId = id;
         mostrarDetallesModal(proveedor);
         
     } catch (error) {
@@ -155,13 +375,16 @@ async function verDetalles(id) {
 }
 
 function mostrarDetallesModal(proveedor) {
-    document.getElementById('detallesContenido').innerHTML = `
+    const detallesContenido = document.getElementById('detallesContenido');
+    if (!detallesContenido) return;
+    
+    detallesContenido.innerHTML = `
         <div class="row">
             <div class="col-12 mb-3">
                 <div class="text-center mb-3">
                     <i class="fas fa-truck fa-3x text-primary"></i>
                 </div>
-                <h5 class="text-center">${proveedor.nombre || 'Sin nombre'}</h5>
+                <h5 class="text-center">${escapeHtml(proveedor.nombre) || 'Sin nombre'}</h5>
             </div>
             
             <div class="col-md-6 mb-3">
@@ -170,20 +393,20 @@ function mostrarDetallesModal(proveedor) {
                         <h6 class="card-title">Información de Contacto</h6>
                         <div class="mb-2">
                             <strong>Contacto:</strong>
-                            <span class="float-end">${proveedor.contacto || '—'}</span>
+                            <span class="float-end">${escapeHtml(proveedor.contacto) || '—'}</span>
                         </div>
                         <div class="mb-2">
                             <strong>Teléfono:</strong>
                             <span class="float-end">
                                 ${proveedor.telefono ? `<a href="tel:${proveedor.telefono}" class="text-decoration-none">
-                                    ${proveedor.telefono}
+                                    ${escapeHtml(proveedor.telefono)}
                                 </a>` : '—'}
                             </span>
                         </div>
                         <div class="mb-2">
                             <strong>Email:</strong>
                             <span class="float-end">
-                                ${proveedor.email ? `<a href="mailto:${proveedor.email}" class="text-decoration-none">${proveedor.email}</a>` : '—'}
+                                ${proveedor.email ? `<a href="mailto:${proveedor.email}" class="text-decoration-none">${escapeHtml(proveedor.email)}</a>` : '—'}
                             </span>
                         </div>
                     </div>
@@ -196,7 +419,7 @@ function mostrarDetallesModal(proveedor) {
                         <h6 class="card-title">Ubicación</h6>
                         <div class="mb-3">
                             <strong>Dirección:</strong>
-                            <p class="mt-1">${proveedor.direccion || '—'}</p>
+                            <p class="mt-1">${escapeHtml(proveedor.direccion) || '—'}</p>
                         </div>
                     </div>
                 </div>
@@ -226,9 +449,6 @@ function mostrarDetallesModal(proveedor) {
                             <button class="btn btn-outline-primary" onclick="verProductosProveedor(${proveedor.id_proveedor})">
                                 <i class="fas fa-boxes me-1"></i> Ver productos
                             </button>
-                            <button class="btn btn-outline-warning" onclick="editarProveedor(${proveedor.id_proveedor})">
-                                <i class="fas fa-edit me-1"></i> Editar proveedor
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -238,6 +458,14 @@ function mostrarDetallesModal(proveedor) {
     
     const modal = new bootstrap.Modal(document.getElementById('modalDetalles'));
     modal.show();
+}
+
+function editarProveedorDesdeDetalles() {
+    if (proveedorDetalleId) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalDetalles'));
+        if (modal) modal.hide();
+        editarProveedor(proveedorDetalleId);
+    }
 }
 
 // ============================
@@ -267,10 +495,13 @@ async function verProductosProveedor(id) {
 }
 
 function mostrarModalProductosProveedor(proveedor, productos) {
-    document.getElementById('productosProveedorContenido').innerHTML = `
+    const contenido = document.getElementById('productosProveedorContenido');
+    if (!contenido) return;
+    
+    contenido.innerHTML = `
         <div class="row">
             <div class="col-12 mb-3">
-                <h6>Proveedor: ${proveedor.nombre || 'Sin nombre'}</h6>
+                <h6>Proveedor: ${escapeHtml(proveedor.nombre) || 'Sin nombre'}</h6>
                 <p class="text-muted">Lista de productos suministrados por este proveedor</p>
             </div>
             <div class="col-12">
@@ -296,11 +527,11 @@ function mostrarModalProductosProveedor(proveedor, productos) {
                                     
                                     return `
                                         <tr>
-                                            <td>${producto.nombre || '—'}</td>
-                                            <td><span class="badge bg-light text-dark">${producto.categoria_nombre || 'Sin categoría'}</span></td>
-                                            <td><code>${producto.numero_parte || '—'}</code></td>
-                                            <td>$${parseFloat(producto.precio_venta || 0).toFixed(2)}</td>
-                                            <td><span class="badge ${stockClass}">${stock}</span></td>
+                                            <td>${escapeHtml(producto.nombre) || '—'}</div>
+                                            <td><span class="badge bg-light text-dark">${escapeHtml(producto.categoria_nombre) || 'Sin categoría'}</span></div>
+                                            <td><code>${escapeHtml(producto.numero_parte) || '—'}</code></div>
+                                            <td>$${parseFloat(producto.precio_venta || 0).toFixed(2)}</div>
+                                            <td><span class="badge ${stockClass}">${stock}</span></div>
                                         </tr>
                                     `;
                                 }).join('')
@@ -309,7 +540,7 @@ function mostrarModalProductosProveedor(proveedor, productos) {
                                         <td colspan="5" class="text-center text-muted py-3">
                                             <i class="fas fa-box-open fa-2x mb-2"></i><br>
                                             No hay productos registrados para este proveedor
-                                        </td>
+                                        </div>
                                     </tr>
                                 `
                             }
@@ -361,20 +592,17 @@ function llenarFormularioEdicion(proveedor, id) {
     
     proveedorEditandoId = id;
     
-    // Solo llenar los campos que existen en la BD
     form.querySelector('input[name="nombre"]').value = proveedor.nombre || '';
     form.querySelector('input[name="contacto"]').value = proveedor.contacto || '';
     form.querySelector('input[name="telefono"]').value = proveedor.telefono || '';
     form.querySelector('input[name="email"]').value = proveedor.email || '';
     form.querySelector('textarea[name="direccion"]').value = proveedor.direccion || '';
     
-    // Cambiar título del modal
     const modalTitle = document.querySelector('#modalAgregarProveedor .modal-title');
     if (modalTitle) {
         modalTitle.innerHTML = '<i class="fas fa-edit me-2"></i>Editar Proveedor';
     }
     
-    // Modificar el botón de guardar
     const submitBtn = form.querySelector('button[type="submit"]');
     if (submitBtn) {
         submitBtn.innerHTML = '<i class="fas fa-save"></i> Actualizar proveedor';
@@ -418,7 +646,6 @@ async function eliminarProveedor(id) {
         const result = await response.json();
         mostrarNotificacion('✅ ' + (result.message || 'Proveedor eliminado correctamente'), 'success');
         
-        // Refrescar datos
         refreshProveedores();
         
     } catch (error) {
@@ -428,10 +655,10 @@ async function eliminarProveedor(id) {
 }
 
 // ============================
-// Aplicar filtros
+// Buscar proveedores
 // ============================
-function aplicarFiltros() {
-    const busqueda = document.getElementById('globalSearch').value.toLowerCase().trim();
+function buscarProveedores() {
+    const busqueda = document.getElementById('globalSearchInput').value.toLowerCase().trim();
     
     if (!busqueda) {
         mostrarProveedores(proveedoresData);
@@ -447,7 +674,6 @@ function aplicarFiltros() {
     );
     
     mostrarProveedores(resultados);
-    document.getElementById('contadorProveedores').textContent = `${resultados.length} proveedores encontrados`;
 }
 
 // ============================
@@ -462,7 +688,7 @@ async function refreshProveedores() {
                     <td colspan="7" class="text-center py-4">
                         <div class="spinner-border spinner-border-sm text-primary me-2"></div>
                         Cargando proveedores...
-                    </td>
+                    </div>
                 </tr>
             `;
         }
@@ -473,53 +699,6 @@ async function refreshProveedores() {
         console.error('Error en refreshProveedores:', error);
         mostrarError('Error al cargar proveedores: ' + error.message);
     }
-}
-
-// ============================
-// Mostrar error
-// ============================
-function mostrarError(mensaje) {
-    console.error('Mostrando error:', mensaje);
-    
-    const tbody = document.getElementById('tblProveedores');
-    if (tbody) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="text-center text-danger py-4">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    ${mensaje}
-                </td>
-            </tr>
-        `;
-    }
-    
-    const contador = document.getElementById('contadorProveedores');
-    if (contador) {
-        contador.textContent = 'Error al cargar';
-    }
-}
-
-// ============================
-// Mostrar notificación
-// ============================
-function mostrarNotificacion(mensaje, tipo = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast align-items-center text-bg-${tipo} border-0 position-fixed bottom-0 end-0 m-3`;
-    toast.style.zIndex = '1055';
-    toast.innerHTML = `
-        <div class="d-flex">
-            <div class="toast-body">${mensaje}</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-        </div>
-    `;
-    document.body.appendChild(toast);
-    
-    const bsToast = new bootstrap.Toast(toast);
-    bsToast.show();
-    
-    toast.addEventListener('hidden.bs.toast', () => {
-        toast.remove();
-    });
 }
 
 // ============================
@@ -538,7 +717,6 @@ document.getElementById('formAgregarProveedor').addEventListener('submit', async
         direccion: this.direccion.value
     };
     
-    // Validaciones básicas
     if (!formData.nombre || !formData.contacto || !formData.telefono || !formData.direccion) {
         mostrarNotificacion('❌ Nombre, contacto, teléfono y dirección son obligatorios', 'danger');
         return;
@@ -551,8 +729,6 @@ document.getElementById('formAgregarProveedor').addEventListener('submit', async
         if (proveedorEditandoId) {
             url = `/api/proveedores/${proveedorEditandoId}`;
             method = 'PUT';
-            
-            // Para actualizar, necesitas enviar todos los campos
             formData.id_proveedor = proveedorEditandoId;
         }
         
@@ -574,11 +750,9 @@ document.getElementById('formAgregarProveedor').addEventListener('submit', async
         const result = await response.json();
         mostrarNotificacion('✅ ' + (result.message || 'Proveedor guardado correctamente'), 'success');
         
-        // Limpiar formulario y cerrar modal
         this.reset();
         proveedorEditandoId = null;
         
-        // Restaurar título y botón
         const modalTitle = document.querySelector('#modalAgregarProveedor .modal-title');
         if (modalTitle) {
             modalTitle.innerHTML = '<i class="fas fa-truck me-2"></i>Agregar Proveedor';
@@ -595,7 +769,6 @@ document.getElementById('formAgregarProveedor').addEventListener('submit', async
             modal.hide();
         }
         
-        // Refrescar datos
         refreshProveedores();
         
     } catch (error) {
@@ -605,17 +778,13 @@ document.getElementById('formAgregarProveedor').addEventListener('submit', async
 });
 
 // ============================
-// Buscar proveedores
-// ============================
-function buscarProveedores() {
-    aplicarFiltros();
-}
-
-// ============================
 // Inicializar
 // ============================
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM cargado, inicializando Proovedores.js');
+    
+    // Cargar información del usuario
+    cargarUsuario();
     
     // Búsqueda global
     const btnSearch = document.getElementById('btnSearch');
@@ -624,7 +793,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Permitir búsqueda con Enter
-    const globalSearch = document.getElementById('globalSearch');
+    const globalSearch = document.getElementById('globalSearchInput');
     if (globalSearch) {
         globalSearch.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
@@ -643,7 +812,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             proveedorEditandoId = null;
             
-            // Restaurar título y botón
             const modalTitle = document.querySelector('#modalAgregarProveedor .modal-title');
             if (modalTitle) {
                 modalTitle.innerHTML = '<i class="fas fa-truck me-2"></i>Agregar Proveedor';

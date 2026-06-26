@@ -2,6 +2,7 @@ const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
 const path = require('path');
+const PDFDocument = require('pdfkit');
 
 const app = express();
 const PORT = 3000;
@@ -33,9 +34,133 @@ db.connect((err) => {
     console.log('📊 Base de datos: Lexus');
 });
 
-// Ruta raíz - redirige a Home
+// ================================
+// ===== API USUARIOS (LOGIN) - MOVIDAS AL INICIO =====
+// ================================
+
+// 1. Login de usuario
+app.post('/api/login', (req, res) => {
+    const { email, password } = req.body;
+    
+    console.log('🔐 Intento de login:', { email, password });
+    
+    if (!email || !password) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Correo y contraseña son obligatorios' 
+        });
+    }
+    
+    const query = `
+        SELECT id_usuario, nombre, email, rol, activo 
+        FROM usuario 
+        WHERE email = ? AND password = ? AND activo = 1
+    `;
+    
+    db.query(query, [email, password], (err, results) => {
+        if (err) {
+            console.error('❌ Error en consulta SQL:', err);
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Error al procesar el login'
+            });
+        }
+        
+        console.log(`📊 Resultados encontrados: ${results.length}`);
+        
+        if (results.length === 0) {
+            console.log(`❌ Login fallido para: ${email}`);
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Correo o contraseña incorrectos' 
+            });
+        }
+        
+        const user = results[0];
+        console.log(`✅ Login exitoso: ${user.nombre} (${user.rol})`);
+        
+        res.json({
+            success: true,
+            user: {
+                id: user.id_usuario,
+                nombre: user.nombre,
+                email: user.email,
+                rol: user.rol
+            }
+        });
+    });
+});
+
+// 2. Registrar nuevo usuario
+app.post('/api/usuarios', (req, res) => {
+    const { nombre, email, password, rol } = req.body;
+    
+    console.log('📝 Registrando nuevo usuario:', { nombre, email, rol });
+    
+    if (!nombre || !email || !password) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Nombre, email y contraseña son obligatorios' 
+        });
+    }
+    
+    if (password.length < 6) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'La contraseña debe tener al menos 6 caracteres' 
+        });
+    }
+    
+    const checkQuery = 'SELECT id_usuario FROM usuario WHERE email = ?';
+    db.query(checkQuery, [email], (checkErr, checkResults) => {
+        if (checkErr) {
+            console.error('❌ Error verificando email:', checkErr);
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Error al verificar email' 
+            });
+        }
+        
+        if (checkResults.length > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'El correo electrónico ya está registrado' 
+            });
+        }
+        
+        const insertQuery = `
+            INSERT INTO usuario (nombre, email, password, rol, activo) 
+            VALUES (?, ?, ?, ?, 1)
+        `;
+        
+        db.query(insertQuery, [nombre, email, password, rol || 'vendedor'], (insertErr, result) => {
+            if (insertErr) {
+                console.error('❌ Error insertando usuario:', insertErr);
+                return res.status(500).json({ 
+                    success: false, 
+                    message: 'Error al registrar usuario'
+                });
+            }
+            
+            console.log(`✅ Usuario registrado: ${email} (ID: ${result.insertId})`);
+            
+            res.json({
+                success: true,
+                message: 'Usuario creado exitosamente',
+                user: {
+                    id: result.insertId,
+                    nombre: nombre,
+                    email: email,
+                    rol: rol || 'vendedor'
+                }
+            });
+        });
+    });
+});
+
+// Ruta raíz - redirige al Login
 app.get('/', (req, res) => {
-    res.redirect('/src/Home.html');
+    res.redirect('/src/Login/Login.html');
 });
 
 // Rutas para páginas HTML
@@ -67,7 +192,6 @@ app.get('/ventas', (req, res) => {
 // ===== API CATEGORÍAS ===========
 // ================================
 
-// API para obtener todas las categorías (ACTUALIZADA CON VALOR_STOCK)
 app.get('/api/categorias', (req, res) => {
     const query = `
         SELECT 
@@ -89,7 +213,6 @@ app.get('/api/categorias', (req, res) => {
     });
 });
 
-// API para agregar nueva categoría
 app.post('/api/categorias', (req, res) => {
     const { nombre, descripcion } = req.body;
     const query = 'INSERT INTO categoria (nombre, descripcion) VALUES (?, ?)';
@@ -103,7 +226,6 @@ app.post('/api/categorias', (req, res) => {
     });
 });
 
-// API para actualizar categoría
 app.put('/api/categorias/:id', (req, res) => {
     const categoriaId = req.params.id;
     const { nombre, descripcion } = req.body;
@@ -118,7 +240,6 @@ app.put('/api/categorias/:id', (req, res) => {
     });
 });
 
-// API para eliminar categoría
 app.delete('/api/categorias/:id', (req, res) => {
     const categoriaId = req.params.id;
     const query = 'DELETE FROM categoria WHERE id_categoria = ?';
@@ -133,10 +254,9 @@ app.delete('/api/categorias/:id', (req, res) => {
 });
 
 // ================================
-//  API CLIENTES 
+// ===== API CLIENTES =============
 // ================================
 
-// Obtener todos los clientes
 app.get('/api/clientes', (req, res) => {
     const query = `
         SELECT 
@@ -162,11 +282,9 @@ app.get('/api/clientes', (req, res) => {
     });
 });
 
-// Crear cliente
 app.post('/api/clientes', (req, res) => {
     const { nombre, telefono, email, direccion, ciudad, estado, rfc } = req.body;
     
-    // Validaciones básicas
     if (!nombre || !telefono) {
         return res.status(400).json({ error: 'Nombre y teléfono son obligatorios' });
     }
@@ -198,12 +316,10 @@ app.post('/api/clientes', (req, res) => {
     });
 });
 
-// Actualizar cliente 
 app.put('/api/clientes/:id', (req, res) => {
     const id = req.params.id;
     const { nombre, telefono, email, direccion, ciudad, estado, rfc } = req.body;
     
-    // Validaciones básicas
     if (!nombre || !telefono) {
         return res.status(400).json({ error: 'Nombre y teléfono son obligatorios' });
     }
@@ -241,13 +357,11 @@ app.put('/api/clientes/:id', (req, res) => {
         
         res.json({ 
             success: true, 
-            message: 'Cliente actualizado exitosamente',
-            affectedRows: result.affectedRows 
+            message: 'Cliente actualizado exitosamente'
         });
     });
 });
 
-// Obtener cliente por ID
 app.get('/api/clientes/:id', (req, res) => {
     const id = req.params.id;
     
@@ -279,11 +393,9 @@ app.get('/api/clientes/:id', (req, res) => {
     });
 });
 
-// Eliminar cliente con verificación
 app.delete('/api/clientes/:id', (req, res) => {
     const id = req.params.id;
     
-    // Primero verificar si el cliente tiene ventas asociadas
     const checkQuery = 'SELECT COUNT(*) as ventas_count FROM venta WHERE id_cliente = ?';
     
     db.query(checkQuery, [id], (checkErr, checkResult) => {
@@ -294,11 +406,10 @@ app.delete('/api/clientes/:id', (req, res) => {
         
         if (checkResult[0].ventas_count > 0) {
             return res.status(400).json({ 
-                error: 'No se puede eliminar el cliente porque tiene ventas asociadas. Primero elimine las ventas.' 
+                error: 'No se puede eliminar el cliente porque tiene ventas asociadas.' 
             });
         }
         
-        // Si no tiene ventas, proceder a eliminar
         const deleteQuery = 'DELETE FROM cliente WHERE id_cliente = ?';
         
         db.query(deleteQuery, [id], (deleteErr, deleteResult) => {
@@ -313,18 +424,16 @@ app.delete('/api/clientes/:id', (req, res) => {
             
             res.json({ 
                 success: true, 
-                message: 'Cliente eliminado correctamente',
-                affectedRows: deleteResult.affectedRows 
+                message: 'Cliente eliminado correctamente'
             });
         });
     });
 });
+
 // ================================
 // ===== API PRODUCTOS ============
 // ================================
 
-// Obtener todos los productos
-// API para obtener todos los productos
 app.get('/api/productos', (req, res) => {
     const query = `
         SELECT 
@@ -345,11 +454,131 @@ app.get('/api/productos', (req, res) => {
         res.json(results);
     });
 });
+
+app.post('/api/productos', (req, res) => {
+    const { nombre, marca, numero_parte, modelo_producto, precio_compra, precio_venta, stock_actual, stock_minimo, id_categoria, id_proveedor } = req.body;
+    
+    if (!nombre || !numero_parte || !precio_venta) {
+        return res.status(400).json({ error: 'Nombre, número de parte y precio de venta son obligatorios' });
+    }
+    
+    const query = `
+        INSERT INTO producto 
+        (nombre, marca, numero_parte, modelo_producto, precio_compra, precio_venta, stock_actual, stock_minimo, id_categoria, id_proveedor) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    
+    db.query(query, [nombre, marca || null, numero_parte, modelo_producto || null, precio_compra || 0, precio_venta || 0, stock_actual || 0, stock_minimo || 5, id_categoria || null, id_proveedor || null], 
+        (err, result) => {
+            if (err) {
+                console.error('Error insertando producto:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            res.json({ 
+                success: true, 
+                id: result.insertId,
+                message: 'Producto agregado correctamente' 
+            });
+        }
+    );
+});
+
+app.put('/api/productos/:id', (req, res) => {
+    const id = req.params.id;
+    const { nombre, marca, numero_parte, modelo_producto, precio_compra, precio_venta, stock_actual, stock_minimo, id_categoria, id_proveedor } = req.body;
+    
+    if (!nombre || !numero_parte || !precio_venta) {
+        return res.status(400).json({ error: 'Nombre, número de parte y precio de venta son obligatorios' });
+    }
+    
+    const query = `
+        UPDATE producto SET
+            nombre = ?,
+            marca = ?,
+            numero_parte = ?,
+            modelo_producto = ?,
+            precio_compra = ?,
+            precio_venta = ?,
+            stock_actual = ?,
+            stock_minimo = ?,
+            id_categoria = ?,
+            id_proveedor = ?
+        WHERE id_producto = ?
+    `;
+    
+    db.query(query, [nombre, marca || null, numero_parte, modelo_producto || null, precio_compra || 0, precio_venta || 0, stock_actual || 0, stock_minimo || 5, id_categoria || null, id_proveedor || null, id], 
+        (err, result) => {
+            if (err) {
+                console.error('Error actualizando producto:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Producto no encontrado' });
+            }
+            
+            res.json({ 
+                success: true, 
+                message: 'Producto actualizado correctamente'
+            });
+        }
+    );
+});
+
+app.delete('/api/productos/:id', (req, res) => {
+    const id = req.params.id;
+    
+    const checkQueries = [
+        { name: 'ventas', query: 'SELECT COUNT(*) as count FROM detalle_venta WHERE id_producto = ?' },
+        { name: 'compatibilidades', query: 'SELECT COUNT(*) as count FROM compatibilidad WHERE id_producto = ?' }
+    ];
+    
+    let checksCompleted = 0;
+    let hasAssociations = false;
+    let associationMessage = '';
+    
+    checkQueries.forEach(check => {
+        db.query(check.query, [id], (err, result) => {
+            if (err) {
+                console.error(`Error verificando ${check.name}:`, err);
+            } else if (result[0].count > 0) {
+                hasAssociations = true;
+                associationMessage = `No se puede eliminar el producto porque tiene ${check.name} asociadas.`;
+            }
+            
+            checksCompleted++;
+            
+            if (checksCompleted === checkQueries.length) {
+                if (hasAssociations) {
+                    return res.status(400).json({ error: associationMessage });
+                }
+                
+                const deleteQuery = 'DELETE FROM producto WHERE id_producto = ?';
+                
+                db.query(deleteQuery, [id], (deleteErr, deleteResult) => {
+                    if (deleteErr) {
+                        console.error('Error eliminando producto:', deleteErr);
+                        return res.status(500).json({ error: deleteErr.message });
+                    }
+                    
+                    if (deleteResult.affectedRows === 0) {
+                        return res.status(404).json({ error: 'Producto no encontrado' });
+                    }
+                    
+                    res.json({ 
+                        success: true, 
+                        message: 'Producto eliminado correctamente'
+                    });
+                });
+            }
+        });
+    });
+});
+
 // ================================
 // ===== API PROVEEDORES ==========
 // ================================
 
-// Obtener todos los proveedores
 app.get('/api/proveedores', (req, res) => {
     const query = 'SELECT * FROM proveedor ORDER BY id_proveedor DESC';
     
@@ -362,11 +591,113 @@ app.get('/api/proveedores', (req, res) => {
     });
 });
 
+app.post('/api/proveedores', (req, res) => {
+    const { nombre, contacto, telefono, email, direccion } = req.body;
+    
+    if (!nombre || !contacto || !telefono || !direccion) {
+        return res.status(400).json({ error: 'Nombre, contacto, teléfono y dirección son obligatorios' });
+    }
+    
+    const query = `
+        INSERT INTO proveedor 
+        (nombre, contacto, telefono, email, direccion) 
+        VALUES (?, ?, ?, ?, ?)
+    `;
+    
+    db.query(query, [nombre, contacto, telefono, email || null, direccion], 
+        (err, result) => {
+            if (err) {
+                console.error('Error insertando proveedor:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            res.json({ 
+                success: true, 
+                id: result.insertId,
+                message: 'Proveedor agregado correctamente' 
+            });
+        }
+    );
+});
+
+app.put('/api/proveedores/:id', (req, res) => {
+    const id = req.params.id;
+    const { nombre, contacto, telefono, email, direccion } = req.body;
+    
+    if (!nombre || !contacto || !telefono || !direccion) {
+        return res.status(400).json({ error: 'Nombre, contacto, teléfono y dirección son obligatorios' });
+    }
+    
+    const query = `
+        UPDATE proveedor SET
+            nombre = ?,
+            contacto = ?,
+            telefono = ?,
+            email = ?,
+            direccion = ?
+        WHERE id_proveedor = ?
+    `;
+    
+    db.query(query, [nombre, contacto, telefono, email || null, direccion, id], 
+        (err, result) => {
+            if (err) {
+                console.error('Error actualizando proveedor:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Proveedor no encontrado' });
+            }
+            
+            res.json({ 
+                success: true, 
+                message: 'Proveedor actualizado correctamente'
+            });
+        }
+    );
+});
+
+app.delete('/api/proveedores/:id', (req, res) => {
+    const id = req.params.id;
+    
+    const checkQuery = 'SELECT COUNT(*) as productos_count FROM producto WHERE id_proveedor = ?';
+    
+    db.query(checkQuery, [id], (checkErr, checkResult) => {
+        if (checkErr) {
+            console.error('Error verificando productos del proveedor:', checkErr);
+            return res.status(500).json({ error: checkErr.message });
+        }
+        
+        if (checkResult[0].productos_count > 0) {
+            return res.status(400).json({ 
+                error: 'No se puede eliminar el proveedor porque tiene productos asociados.' 
+            });
+        }
+        
+        const deleteQuery = 'DELETE FROM proveedor WHERE id_proveedor = ?';
+        
+        db.query(deleteQuery, [id], (deleteErr, deleteResult) => {
+            if (deleteErr) {
+                console.error('Error eliminando proveedor:', deleteErr);
+                return res.status(500).json({ error: deleteErr.message });
+            }
+            
+            if (deleteResult.affectedRows === 0) {
+                return res.status(404).json({ error: 'Proveedor no encontrado' });
+            }
+            
+            res.json({ 
+                success: true, 
+                message: 'Proveedor eliminado correctamente'
+            });
+        });
+    });
+});
+
 // ================================
-// ===== API VEHÍCULOS ============
+// ===== API VEHÍCULOS  ===
 // ================================
 
-// Obtener todos los vehículos
+// 1. Obtener todos los vehículos
 app.get('/api/vehiculos', (req, res) => {
     const query = 'SELECT * FROM vehiculo ORDER BY id_vehiculo DESC';
     
@@ -379,21 +710,196 @@ app.get('/api/vehiculos', (req, res) => {
     });
 });
 
+// 2. Obtener vehículo por ID
+app.get('/api/vehiculos/:id', (req, res) => {
+    const vehiculoId = req.params.id;
+    
+    const query = 'SELECT * FROM vehiculo WHERE id_vehiculo = ?';
+    
+    db.query(query, [vehiculoId], (err, results) => {
+        if (err) {
+            console.error('Error obteniendo vehículo:', err);
+            return res.status(500).json({ error: err.message });
+        }
+        
+        if (results.length === 0) {
+            return res.status(404).json({ error: 'Vehículo no encontrado' });
+        }
+        
+        res.json(results[0]);
+    });
+});
 
-// ================================
-// ===== RUTAS DE ESTADÍSTICAS ====
-// ================================
+// 3. Agregar nuevo vehículo
+app.post('/api/vehiculos', (req, res) => {
+    const { marca, modelo, año, motor, transmision } = req.body;
+    
+    // Validaciones básicas
+    if (!marca || !modelo || !año) {
+        return res.status(400).json({ error: 'Marca, modelo y año son obligatorios' });
+    }
+    
+    // Validar año
+    const añoActual = new Date().getFullYear();
+    if (año < 1900 || año > añoActual + 1) {
+        return res.status(400).json({ error: `Año debe estar entre 1900 y ${añoActual + 1}` });
+    }
+    
+    const query = `
+        INSERT INTO vehiculo 
+        (marca, modelo, año, motor, transmision) 
+        VALUES (?, ?, ?, ?, ?)
+    `;
+    
+    db.query(query, [marca, modelo, año, motor || null, transmision || null], 
+        (err, result) => {
+            if (err) {
+                console.error('Error insertando vehículo:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            res.json({ 
+                success: true, 
+                id: result.insertId,
+                message: 'Vehículo agregado correctamente' 
+            });
+        }
+    );
+});
 
-// Estadísticas generales
-app.get('/api/estadisticas', (req, res) => {
+// 4. Actualizar vehículo
+app.put('/api/vehiculos/:id', (req, res) => {
+    const id = req.params.id;
+    const { marca, modelo, año, motor, transmision } = req.body;
+    
+    // Validaciones básicas
+    if (!marca || !modelo || !año) {
+        return res.status(400).json({ error: 'Marca, modelo y año son obligatorios' });
+    }
+    
+    // Validar año
+    const añoActual = new Date().getFullYear();
+    if (año < 1900 || año > añoActual + 1) {
+        return res.status(400).json({ error: `Año debe estar entre 1900 y ${añoActual + 1}` });
+    }
+    
+    const query = `
+        UPDATE vehiculo SET
+            marca = ?,
+            modelo = ?,
+            año = ?,
+            motor = ?,
+            transmision = ?
+        WHERE id_vehiculo = ?
+    `;
+    
+    db.query(query, [marca, modelo, año, motor || null, transmision || null, id], 
+        (err, result) => {
+            if (err) {
+                console.error('Error actualizando vehículo:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Vehículo no encontrado' });
+            }
+            
+            res.json({ 
+                success: true, 
+                message: 'Vehículo actualizado correctamente',
+                affectedRows: result.affectedRows 
+            });
+        }
+    );
+});
+
+// 5. Eliminar vehículo
+app.delete('/api/vehiculos/:id', (req, res) => {
+    const id = req.params.id;
+    
+    // Primero verificar si el vehículo tiene compatibilidades asociadas
+    const checkQuery = 'SELECT COUNT(*) as compatibilidades_count FROM compatibilidad WHERE id_vehiculo = ?';
+    
+    db.query(checkQuery, [id], (checkErr, checkResult) => {
+        if (checkErr) {
+            console.error('Error verificando compatibilidades del vehículo:', checkErr);
+            return res.status(500).json({ error: checkErr.message });
+        }
+        
+        if (checkResult[0].compatibilidades_count > 0) {
+            return res.status(400).json({ 
+                error: 'No se puede eliminar el vehículo porque tiene compatibilidades asociadas. Primero elimine las compatibilidades.' 
+            });
+        }
+        
+        // Si no tiene compatibilidades, proceder a eliminar
+        const deleteQuery = 'DELETE FROM vehiculo WHERE id_vehiculo = ?';
+        
+        db.query(deleteQuery, [id], (deleteErr, deleteResult) => {
+            if (deleteErr) {
+                console.error('Error eliminando vehículo:', deleteErr);
+                return res.status(500).json({ error: deleteErr.message });
+            }
+            
+            if (deleteResult.affectedRows === 0) {
+                return res.status(404).json({ error: 'Vehículo no encontrado' });
+            }
+            
+            res.json({ 
+                success: true, 
+                message: 'Vehículo eliminado correctamente',
+                affectedRows: deleteResult.affectedRows 
+            });
+        });
+    });
+});
+
+// 6. Buscar vehículos por término
+app.get('/api/vehiculos/buscar/:termino', (req, res) => {
+    const termino = `%${req.params.termino}%`;
+    
+    const query = `
+        SELECT * FROM vehiculo 
+        WHERE marca LIKE ? OR 
+              modelo LIKE ? OR 
+              motor LIKE ? OR 
+              año LIKE ? OR 
+              transmision LIKE ?
+        ORDER BY id_vehiculo DESC
+        LIMIT 50
+    `;
+    
+    db.query(query, [termino, termino, termino, termino, termino], 
+        (err, results) => {
+            if (err) {
+                console.error('Error buscando vehículos:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            res.json(results);
+        }
+    );
+});
+
+// 7. Obtener estadísticas de vehículos
+app.get('/api/vehiculos/estadisticas', (req, res) => {
     const queries = {
-        totalClientes: 'SELECT COUNT(*) as total FROM cliente',
-        totalProductos: 'SELECT COUNT(*) as total FROM producto',
-        totalVentas: 'SELECT COUNT(*) as total FROM venta',
-        ventasHoy: 'SELECT COUNT(*) as total FROM venta WHERE DATE(fecha) = CURDATE()'
+        totalVehiculos: 'SELECT COUNT(*) as total FROM vehiculo',
+        totalMarcas: 'SELECT COUNT(DISTINCT marca) as total FROM vehiculo',
+        totalModelos: 'SELECT COUNT(DISTINCT modelo) as total FROM vehiculo',
+        vehiculosPorMarca: `
+            SELECT marca, COUNT(*) as cantidad 
+            FROM vehiculo 
+            GROUP BY marca 
+            ORDER BY cantidad DESC
+        `,
+        añosMasComunes: `
+            SELECT año, COUNT(*) as cantidad 
+            FROM vehiculo 
+            GROUP BY año 
+            ORDER BY cantidad DESC 
+            LIMIT 10
+        `
     };
     
-    // Ejecutar todas las consultas
     const results = {};
     let completed = 0;
     const totalQueries = Object.keys(queries).length;
@@ -402,9 +908,9 @@ app.get('/api/estadisticas', (req, res) => {
         db.query(queries[key], (err, result) => {
             if (err) {
                 console.error(`Error en consulta ${key}:`, err);
-                results[key] = 0;
+                results[key] = key.includes('Por') || key.includes('Comunes') ? [] : 0;
             } else {
-                results[key] = result[0].total;
+                results[key] = result;
             }
             
             completed++;
@@ -415,25 +921,28 @@ app.get('/api/estadisticas', (req, res) => {
     });
 });
 
-// ================================
-// ===== RUTA DE PRUEBA ===========
-// ================================
-
-app.get('/api/test', (req, res) => {
-    res.json({ 
-        message: 'API funcionando', 
-        timestamp: new Date().toISOString(),
-        endpoints: [
-            '/api/categorias',
-            '/api/clientes',
-            '/api/productos',
-            '/api/proveedores',
-            '/api/vehiculos',
-            '/api/ventas',
-            '/api/estadisticas'
-        ]
+// 8. Verificar si un vehículo existe por marca y modelo
+app.get('/api/vehiculos/existe/:marca/:modelo', (req, res) => {
+    const marca = req.params.marca;
+    const modelo = req.params.modelo;
+    
+    const query = 'SELECT id_vehiculo FROM vehiculo WHERE marca = ? AND modelo = ? LIMIT 1';
+    
+    db.query(query, [marca, modelo], (err, results) => {
+        if (err) {
+            console.error('Error verificando vehículo:', err);
+            return res.status(500).json({ error: err.message });
+        }
+        
+        res.json({ 
+            existe: results.length > 0,
+            vehiculo: results.length > 0 ? results[0] : null
+        });
     });
 });
+
+
+
 
 // ================================
 // ===== API COMPATIBILIDAD =======
@@ -843,377 +1352,37 @@ app.get('/api/vehiculos/:id', (req, res) => {
     });
 });
 
-// ================================
-// ===== API PRODUCTOS  ===
-// ================================
-
-// Obtener todos los productos
-app.get('/api/productos', (req, res) => {
+app.get('/api/estadisticas/ventas-semana', (req, res) => {
     const query = `
-        SELECT p.*, c.nombre as categoria_nombre
-        FROM producto p
-        LEFT JOIN categoria c ON p.id_categoria = c.id_categoria
-        ORDER BY p.id_producto DESC
+        SELECT 
+            DATE(fecha) as dia,
+            DAYNAME(fecha) as nombre_dia,
+            COUNT(*) as total_ventas,
+            COALESCE(SUM(total), 0) as monto_total
+        FROM venta
+        WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+        GROUP BY DATE(fecha), DAYNAME(fecha)
+        ORDER BY DATE(fecha) ASC
     `;
     
     db.query(query, (err, results) => {
         if (err) {
-            console.error('Error obteniendo productos:', err);
+            console.error('Error obteniendo ventas de la semana:', err);
             return res.status(500).json({ error: err.message });
         }
         res.json(results);
     });
 });
-
-// API para agregar nuevo producto
-app.post('/api/productos', (req, res) => {
-    const { nombre, marca, numero_parte, modelo_producto, precio_compra, precio_venta, stock_actual, stock_minimo, id_categoria, id_proveedor } = req.body;
-    
-    // Validaciones básicas
-    if (!nombre || !numero_parte || !precio_venta) {
-        return res.status(400).json({ error: 'Nombre, número de parte y precio de venta son obligatorios' });
-    }
-    
-    const query = `
-        INSERT INTO producto 
-        (nombre, marca, numero_parte, modelo_producto, precio_compra, precio_venta, stock_actual, stock_minimo, id_categoria, id_proveedor) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    
-    db.query(query, [nombre, marca || null, numero_parte, modelo_producto || null, precio_compra || 0, precio_venta || 0, stock_actual || 0, stock_minimo || 5, id_categoria || null, id_proveedor || null], 
-        (err, result) => {
-            if (err) {
-                console.error('Error insertando producto:', err);
-                return res.status(500).json({ error: err.message });
-            }
-            res.json({ 
-                success: true, 
-                id: result.insertId,
-                message: 'Producto agregado correctamente' 
-            });
-        }
-    );
-});
-
-// API para actualizar producto
-app.put('/api/productos/:id', (req, res) => {
-    const id = req.params.id;
-    const { nombre, marca, numero_parte, modelo_producto, precio_compra, precio_venta, stock_actual, stock_minimo, id_categoria, id_proveedor } = req.body;
-    
-    // Validaciones básicas
-    if (!nombre || !numero_parte || !precio_venta) {
-        return res.status(400).json({ error: 'Nombre, número de parte y precio de venta son obligatorios' });
-    }
-    
-    const query = `
-        UPDATE producto SET
-            nombre = ?,
-            marca = ?,
-            numero_parte = ?,
-            modelo_producto = ?,
-            precio_compra = ?,
-            precio_venta = ?,
-            stock_actual = ?,
-            stock_minimo = ?,
-            id_categoria = ?,
-            id_proveedor = ?
-        WHERE id_producto = ?
-    `;
-    
-    db.query(query, [nombre, marca || null, numero_parte, modelo_producto || null, precio_compra || 0, precio_venta || 0, stock_actual || 0, stock_minimo || 5, id_categoria || null, id_proveedor || null, id], 
-        (err, result) => {
-            if (err) {
-                console.error('Error actualizando producto:', err);
-                return res.status(500).json({ error: err.message });
-            }
-            
-            if (result.affectedRows === 0) {
-                return res.status(404).json({ error: 'Producto no encontrado' });
-            }
-            
-            res.json({ 
-                success: true, 
-                message: 'Producto actualizado correctamente',
-                affectedRows: result.affectedRows 
-            });
-        }
-    );
-});
-
-// API para eliminar producto
-app.delete('/api/productos/:id', (req, res) => {
-    const id = req.params.id;
-    
-    // Primero verificar si el producto tiene ventas o compatibilidades asociadas
-    const checkQueries = [
-        { name: 'ventas', query: 'SELECT COUNT(*) as count FROM detalle_venta WHERE id_producto = ?' },
-        { name: 'compatibilidades', query: 'SELECT COUNT(*) as count FROM compatibilidad WHERE id_producto = ?' }
-    ];
-    
-    let checksCompleted = 0;
-    let hasAssociations = false;
-    let associationMessage = '';
-    
-    checkQueries.forEach(check => {
-        db.query(check.query, [id], (err, result) => {
-            if (err) {
-                console.error(`Error verificando ${check.name}:`, err);
-                // Continuar con la siguiente verificación
-            } else if (result[0].count > 0) {
-                hasAssociations = true;
-                associationMessage = `No se puede eliminar el producto porque tiene ${check.name} asociadas.`;
-            }
-            
-            checksCompleted++;
-            
-            if (checksCompleted === checkQueries.length) {
-                if (hasAssociations) {
-                    return res.status(400).json({ error: associationMessage });
-                }
-                
-                // Si no tiene asociaciones, proceder a eliminar
-                const deleteQuery = 'DELETE FROM producto WHERE id_producto = ?';
-                
-                db.query(deleteQuery, [id], (deleteErr, deleteResult) => {
-                    if (deleteErr) {
-                        console.error('Error eliminando producto:', deleteErr);
-                        return res.status(500).json({ error: deleteErr.message });
-                    }
-                    
-                    if (deleteResult.affectedRows === 0) {
-                        return res.status(404).json({ error: 'Producto no encontrado' });
-                    }
-                    
-                    res.json({ 
-                        success: true, 
-                        message: 'Producto eliminado correctamente',
-                        affectedRows: deleteResult.affectedRows 
-                    });
-                });
-            }
-        });
-    });
-});
-
-// API para obtener producto específico
-app.get('/api/productos/:id', (req, res) => {
-    const productoId = req.params.id;
-    
-    const query = `
-        SELECT p.*, c.nombre as categoria_nombre
-        FROM producto p
-        LEFT JOIN categoria c ON p.id_categoria = c.id_categoria
-        WHERE p.id_producto = ?
-    `;
-    
-    db.query(query, [productoId], (err, results) => {
-        if (err) {
-            console.error('Error obteniendo producto:', err);
-            return res.status(500).json({ error: err.message });
-        }
-        
-        if (results.length === 0) {
-            return res.status(404).json({ error: 'Producto no encontrado' });
-        }
-        
-        res.json(results[0]);
-    });
-});
 // ================================
-// ===== API PROVEEDORES ===
+// ===== RUTAS DE ESTADÍSTICAS ====
 // ================================
 
-// 1. Obtener todos los proveedores
-app.get('/api/proveedores', (req, res) => {
-    const query = 'SELECT * FROM proveedor ORDER BY id_proveedor DESC';
-    
-    db.query(query, (err, results) => {
-        if (err) {
-            console.error('Error obteniendo proveedores:', err);
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(results);
-    });
-});
-
-// 2. Obtener proveedor por ID
-app.get('/api/proveedores/:id', (req, res) => {
-    const proveedorId = req.params.id;
-    
-    const query = 'SELECT * FROM proveedor WHERE id_proveedor = ?';
-    
-    db.query(query, [proveedorId], (err, results) => {
-        if (err) {
-            console.error('Error obteniendo proveedor:', err);
-            return res.status(500).json({ error: err.message });
-        }
-        
-        if (results.length === 0) {
-            return res.status(404).json({ error: 'Proveedor no encontrado' });
-        }
-        
-        res.json(results[0]);
-    });
-});
-
-// 3. Agregar nuevo proveedor 
-app.post('/api/proveedores', (req, res) => {
-    const { nombre, contacto, telefono, email, direccion } = req.body;
-    
-    // Validaciones básicas
-    if (!nombre || !contacto || !telefono || !direccion) {
-        return res.status(400).json({ error: 'Nombre, contacto, teléfono y dirección son obligatorios' });
-    }
-    
-    const query = `
-        INSERT INTO proveedor 
-        (nombre, contacto, telefono, email, direccion) 
-        VALUES (?, ?, ?, ?, ?)
-    `;
-    
-    db.query(query, [nombre, contacto, telefono, email || null, direccion], 
-        (err, result) => {
-            if (err) {
-                console.error('Error insertando proveedor:', err);
-                return res.status(500).json({ error: err.message });
-            }
-            res.json({ 
-                success: true, 
-                id: result.insertId,
-                message: 'Proveedor agregado correctamente' 
-            });
-        }
-    );
-});
-
-// 4. Actualizar proveedor 
-app.put('/api/proveedores/:id', (req, res) => {
-    const id = req.params.id;
-    const { nombre, contacto, telefono, email, direccion } = req.body;
-    
-    // Validaciones básicas
-    if (!nombre || !contacto || !telefono || !direccion) {
-        return res.status(400).json({ error: 'Nombre, contacto, teléfono y dirección son obligatorios' });
-    }
-    
-    const query = `
-        UPDATE proveedor SET
-            nombre = ?,
-            contacto = ?,
-            telefono = ?,
-            email = ?,
-            direccion = ?
-        WHERE id_proveedor = ?
-    `;
-    
-    db.query(query, [nombre, contacto, telefono, email || null, direccion, id], 
-        (err, result) => {
-            if (err) {
-                console.error('Error actualizando proveedor:', err);
-                return res.status(500).json({ error: err.message });
-            }
-            
-            if (result.affectedRows === 0) {
-                return res.status(404).json({ error: 'Proveedor no encontrado' });
-            }
-            
-            res.json({ 
-                success: true, 
-                message: 'Proveedor actualizado correctamente',
-                affectedRows: result.affectedRows 
-            });
-        }
-    );
-});
-
-// 5. Eliminar proveedor
-app.delete('/api/proveedores/:id', (req, res) => {
-    const id = req.params.id;
-    
-    // Primero verificar si el proveedor tiene productos asociados
-    const checkQuery = 'SELECT COUNT(*) as productos_count FROM producto WHERE id_proveedor = ?';
-    
-    db.query(checkQuery, [id], (checkErr, checkResult) => {
-        if (checkErr) {
-            console.error('Error verificando productos del proveedor:', checkErr);
-            return res.status(500).json({ error: checkErr.message });
-        }
-        
-        if (checkResult[0].productos_count > 0) {
-            return res.status(400).json({ 
-                error: 'No se puede eliminar el proveedor porque tiene productos asociados. Primero actualice los productos.' 
-            });
-        }
-        
-        // Si no tiene productos, proceder a eliminar
-        const deleteQuery = 'DELETE FROM proveedor WHERE id_proveedor = ?';
-        
-        db.query(deleteQuery, [id], (deleteErr, deleteResult) => {
-            if (deleteErr) {
-                console.error('Error eliminando proveedor:', deleteErr);
-                return res.status(500).json({ error: deleteErr.message });
-            }
-            
-            if (deleteResult.affectedRows === 0) {
-                return res.status(404).json({ error: 'Proveedor no encontrado' });
-            }
-            
-            res.json({ 
-                success: true, 
-                message: 'Proveedor eliminado correctamente',
-                affectedRows: deleteResult.affectedRows 
-            });
-        });
-    });
-});
-
-// 6. Buscar proveedores por término
-app.get('/api/proveedores/buscar/:termino', (req, res) => {
-    const termino = `%${req.params.termino}%`;
-    
-    const query = `
-        SELECT * FROM proveedor 
-        WHERE nombre LIKE ? OR 
-              contacto LIKE ? OR 
-              telefono LIKE ? OR 
-              email LIKE ? OR 
-              direccion LIKE ?
-        ORDER BY id_proveedor DESC
-        LIMIT 50
-    `;
-    
-    db.query(query, [termino, termino, termino, termino, termino], 
-        (err, results) => {
-            if (err) {
-                console.error('Error buscando proveedores:', err);
-                return res.status(500).json({ error: err.message });
-            }
-            res.json(results);
-        }
-    );
-});
-
-// 7. Obtener estadísticas de proveedores
-app.get('/api/proveedores/estadisticas', (req, res) => {
+app.get('/api/estadisticas', (req, res) => {
     const queries = {
-        totalProveedores: 'SELECT COUNT(*) as total FROM proveedor',
-        proveedoresConEmail: 'SELECT COUNT(*) as total FROM proveedor WHERE email IS NOT NULL',
-        proveedoresSinProductos: `
-            SELECT COUNT(*) as total FROM proveedor p
-            LEFT JOIN producto pr ON p.id_proveedor = pr.id_proveedor
-            WHERE pr.id_producto IS NULL
-        `,
-        productosPorProveedor: `
-            SELECT 
-                p.id_proveedor,
-                p.nombre as proveedor_nombre,
-                COUNT(pr.id_producto) as cantidad_productos,
-                SUM(pr.stock_actual) as stock_total,
-                SUM(pr.stock_actual * pr.precio_venta) as valor_inventario
-            FROM proveedor p
-            LEFT JOIN producto pr ON p.id_proveedor = pr.id_proveedor
-            GROUP BY p.id_proveedor, p.nombre
-        `
+        totalClientes: 'SELECT COUNT(*) as total FROM cliente',
+        totalProductos: 'SELECT COUNT(*) as total FROM producto',
+        totalVentas: 'SELECT COUNT(*) as total FROM venta',
+        ventasHoy: 'SELECT COUNT(*) as total FROM venta WHERE DATE(fecha) = CURDATE()'
     };
     
     const results = {};
@@ -1224,9 +1393,9 @@ app.get('/api/proveedores/estadisticas', (req, res) => {
         db.query(queries[key], (err, result) => {
             if (err) {
                 console.error(`Error en consulta ${key}:`, err);
-                results[key] = key === 'productosPorProveedor' ? [] : 0;
+                results[key] = 0;
             } else {
-                results[key] = result;
+                results[key] = result[0].total;
             }
             
             completed++;
@@ -1237,360 +1406,30 @@ app.get('/api/proveedores/estadisticas', (req, res) => {
     });
 });
 
-// 8. Obtener productos de un proveedor específico
-app.get('/api/proveedores/:id/productos', (req, res) => {
-    const proveedorId = req.params.id;
-    
-    const query = `
-        SELECT 
-            p.*,
-            c.nombre as categoria_nombre
-        FROM producto p
-        LEFT JOIN categoria c ON p.id_categoria = c.id_categoria
-        WHERE p.id_proveedor = ?
-        ORDER BY p.nombre ASC
-    `;
-    
-    db.query(query, [proveedorId], (err, results) => {
-        if (err) {
-            console.error('Error obteniendo productos del proveedor:', err);
-            return res.status(500).json({ error: err.message });
-        }
-        
-        res.json(results);
-    });
-});
-
-// 9. Verificar si un proveedor existe por nombre
-app.get('/api/proveedores/existe/:nombre', (req, res) => {
-    const nombre = req.params.nombre;
-    
-    const query = 'SELECT id_proveedor FROM proveedor WHERE nombre = ? LIMIT 1';
-    
-    db.query(query, [nombre], (err, results) => {
-        if (err) {
-            console.error('Error verificando proveedor:', err);
-            return res.status(500).json({ error: err.message });
-        }
-        
-        res.json({ 
-            existe: results.length > 0,
-            proveedor: results.length > 0 ? results[0] : null
-        });
-    });
-});
-
-// 10. Obtener proveedores con conteo de productos
-app.get('/api/proveedores/con-conteo', (req, res) => {
-    const query = `
-        SELECT 
-            p.*,
-            COUNT(pr.id_producto) as productos_count,
-            SUM(pr.stock_actual) as stock_total
-        FROM proveedor p
-        LEFT JOIN producto pr ON p.id_proveedor = pr.id_proveedor
-        GROUP BY p.id_proveedor
-        ORDER BY productos_count DESC
-    `;
-    
-    db.query(query, (err, results) => {
-        if (err) {
-            console.error('Error obteniendo proveedores con conteo:', err);
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(results);
-    });
-});
 // ================================
-// ===== API VEHÍCULOS  ===
+// ===== API VENTAS ================
 // ================================
 
-// 1. Obtener todos los vehículos
-app.get('/api/vehiculos', (req, res) => {
-    const query = 'SELECT * FROM vehiculo ORDER BY id_vehiculo DESC';
-    
-    db.query(query, (err, results) => {
-        if (err) {
-            console.error('Error obteniendo vehículos:', err);
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(results);
-    });
-});
-
-// 2. Obtener vehículo por ID
-app.get('/api/vehiculos/:id', (req, res) => {
-    const vehiculoId = req.params.id;
-    
-    const query = 'SELECT * FROM vehiculo WHERE id_vehiculo = ?';
-    
-    db.query(query, [vehiculoId], (err, results) => {
-        if (err) {
-            console.error('Error obteniendo vehículo:', err);
-            return res.status(500).json({ error: err.message });
-        }
-        
-        if (results.length === 0) {
-            return res.status(404).json({ error: 'Vehículo no encontrado' });
-        }
-        
-        res.json(results[0]);
-    });
-});
-
-// 3. Agregar nuevo vehículo
-app.post('/api/vehiculos', (req, res) => {
-    const { marca, modelo, año, motor, transmision } = req.body;
-    
-    // Validaciones básicas
-    if (!marca || !modelo || !año) {
-        return res.status(400).json({ error: 'Marca, modelo y año son obligatorios' });
-    }
-    
-    // Validar año
-    const añoActual = new Date().getFullYear();
-    if (año < 1900 || año > añoActual + 1) {
-        return res.status(400).json({ error: `Año debe estar entre 1900 y ${añoActual + 1}` });
-    }
-    
-    const query = `
-        INSERT INTO vehiculo 
-        (marca, modelo, año, motor, transmision) 
-        VALUES (?, ?, ?, ?, ?)
-    `;
-    
-    db.query(query, [marca, modelo, año, motor || null, transmision || null], 
-        (err, result) => {
-            if (err) {
-                console.error('Error insertando vehículo:', err);
-                return res.status(500).json({ error: err.message });
-            }
-            res.json({ 
-                success: true, 
-                id: result.insertId,
-                message: 'Vehículo agregado correctamente' 
-            });
-        }
-    );
-});
-
-// 4. Actualizar vehículo
-app.put('/api/vehiculos/:id', (req, res) => {
-    const id = req.params.id;
-    const { marca, modelo, año, motor, transmision } = req.body;
-    
-    // Validaciones básicas
-    if (!marca || !modelo || !año) {
-        return res.status(400).json({ error: 'Marca, modelo y año son obligatorios' });
-    }
-    
-    // Validar año
-    const añoActual = new Date().getFullYear();
-    if (año < 1900 || año > añoActual + 1) {
-        return res.status(400).json({ error: `Año debe estar entre 1900 y ${añoActual + 1}` });
-    }
-    
-    const query = `
-        UPDATE vehiculo SET
-            marca = ?,
-            modelo = ?,
-            año = ?,
-            motor = ?,
-            transmision = ?
-        WHERE id_vehiculo = ?
-    `;
-    
-    db.query(query, [marca, modelo, año, motor || null, transmision || null, id], 
-        (err, result) => {
-            if (err) {
-                console.error('Error actualizando vehículo:', err);
-                return res.status(500).json({ error: err.message });
-            }
-            
-            if (result.affectedRows === 0) {
-                return res.status(404).json({ error: 'Vehículo no encontrado' });
-            }
-            
-            res.json({ 
-                success: true, 
-                message: 'Vehículo actualizado correctamente',
-                affectedRows: result.affectedRows 
-            });
-        }
-    );
-});
-
-// 5. Eliminar vehículo
-app.delete('/api/vehiculos/:id', (req, res) => {
-    const id = req.params.id;
-    
-    // Primero verificar si el vehículo tiene compatibilidades asociadas
-    const checkQuery = 'SELECT COUNT(*) as compatibilidades_count FROM compatibilidad WHERE id_vehiculo = ?';
-    
-    db.query(checkQuery, [id], (checkErr, checkResult) => {
-        if (checkErr) {
-            console.error('Error verificando compatibilidades del vehículo:', checkErr);
-            return res.status(500).json({ error: checkErr.message });
-        }
-        
-        if (checkResult[0].compatibilidades_count > 0) {
-            return res.status(400).json({ 
-                error: 'No se puede eliminar el vehículo porque tiene compatibilidades asociadas. Primero elimine las compatibilidades.' 
-            });
-        }
-        
-        // Si no tiene compatibilidades, proceder a eliminar
-        const deleteQuery = 'DELETE FROM vehiculo WHERE id_vehiculo = ?';
-        
-        db.query(deleteQuery, [id], (deleteErr, deleteResult) => {
-            if (deleteErr) {
-                console.error('Error eliminando vehículo:', deleteErr);
-                return res.status(500).json({ error: deleteErr.message });
-            }
-            
-            if (deleteResult.affectedRows === 0) {
-                return res.status(404).json({ error: 'Vehículo no encontrado' });
-            }
-            
-            res.json({ 
-                success: true, 
-                message: 'Vehículo eliminado correctamente',
-                affectedRows: deleteResult.affectedRows 
-            });
-        });
-    });
-});
-
-// 6. Buscar vehículos por término
-app.get('/api/vehiculos/buscar/:termino', (req, res) => {
-    const termino = `%${req.params.termino}%`;
-    
-    const query = `
-        SELECT * FROM vehiculo 
-        WHERE marca LIKE ? OR 
-              modelo LIKE ? OR 
-              motor LIKE ? OR 
-              año LIKE ? OR 
-              transmision LIKE ?
-        ORDER BY id_vehiculo DESC
-        LIMIT 50
-    `;
-    
-    db.query(query, [termino, termino, termino, termino, termino], 
-        (err, results) => {
-            if (err) {
-                console.error('Error buscando vehículos:', err);
-                return res.status(500).json({ error: err.message });
-            }
-            res.json(results);
-        }
-    );
-});
-
-// 7. Obtener estadísticas de vehículos
-app.get('/api/vehiculos/estadisticas', (req, res) => {
-    const queries = {
-        totalVehiculos: 'SELECT COUNT(*) as total FROM vehiculo',
-        totalMarcas: 'SELECT COUNT(DISTINCT marca) as total FROM vehiculo',
-        totalModelos: 'SELECT COUNT(DISTINCT modelo) as total FROM vehiculo',
-        vehiculosPorMarca: `
-            SELECT marca, COUNT(*) as cantidad 
-            FROM vehiculo 
-            GROUP BY marca 
-            ORDER BY cantidad DESC
-        `,
-        añosMasComunes: `
-            SELECT año, COUNT(*) as cantidad 
-            FROM vehiculo 
-            GROUP BY año 
-            ORDER BY cantidad DESC 
-            LIMIT 10
-        `
-    };
-    
-    const results = {};
-    let completed = 0;
-    const totalQueries = Object.keys(queries).length;
-    
-    Object.keys(queries).forEach(key => {
-        db.query(queries[key], (err, result) => {
-            if (err) {
-                console.error(`Error en consulta ${key}:`, err);
-                results[key] = key.includes('Por') || key.includes('Comunes') ? [] : 0;
-            } else {
-                results[key] = result;
-            }
-            
-            completed++;
-            if (completed === totalQueries) {
-                res.json(results);
-            }
-        });
-    });
-});
-
-// 8. Verificar si un vehículo existe por marca y modelo
-app.get('/api/vehiculos/existe/:marca/:modelo', (req, res) => {
-    const marca = req.params.marca;
-    const modelo = req.params.modelo;
-    
-    const query = 'SELECT id_vehiculo FROM vehiculo WHERE marca = ? AND modelo = ? LIMIT 1';
-    
-    db.query(query, [marca, modelo], (err, results) => {
-        if (err) {
-            console.error('Error verificando vehículo:', err);
-            return res.status(500).json({ error: err.message });
-        }
-        
-        res.json({ 
-            existe: results.length > 0,
-            vehiculo: results.length > 0 ? results[0] : null
-        });
-    });
-});
-
-
-app.get('/api/estadisticas', async (req, res) => {
-  try {
-    const queries = {
-      totalProductos: 'SELECT COUNT(*) AS total FROM producto',
-      totalCategorias: 'SELECT COUNT(*) AS total FROM categoria',
-      totalProveedores: 'SELECT COUNT(*) AS total FROM proveedor',
-      ventasHoy: 'SELECT COUNT(*) AS total FROM venta WHERE DATE(fecha)=CURDATE()'
-    };
-
-    const results = {};
-
-    for (const key in queries) {
-      const [rows] = await db.query(queries[key]);
-      results[key] = rows[0].total;
-    }
-
-    res.json(results);
-  } catch (error) {
-    res.status(500).json({ error: 'Error al obtener estadísticas' });
-  }
-});
-// ================================
-// ===== API VENTAS  ==
-// ================================
-
-// 1. Obtener todas las ventas con cliente
+// 1. Obtener todas las ventas con cliente y vendedor
 app.get('/api/ventas', async (req, res) => {
     try {
         console.log('📊 Obteniendo todas las ventas...');
         
         // Obtener parámetros de filtro
-        const { fechaDesde, fechaHasta, cliente, orden } = req.query;
+        const { fechaDesde, fechaHasta, cliente, orden, vendedor } = req.query;
         
         let query = `
             SELECT 
                 v.*,
                 c.nombre as cliente_nombre,
                 c.telefono as cliente_telefono,
-                c.email as cliente_email
+                c.email as cliente_email,
+                u.nombre as vendedor_nombre,
+                u.email as vendedor_email,
+                u.rol as vendedor_rol
             FROM venta v
             LEFT JOIN cliente c ON v.id_cliente = c.id_cliente
+            LEFT JOIN usuario u ON v.id_usuario = u.id_usuario
         `;
         
         const whereConditions = [];
@@ -1612,6 +1451,11 @@ app.get('/api/ventas', async (req, res) => {
             queryParams.push(cliente);
         }
         
+        if (vendedor) {
+            whereConditions.push('v.id_usuario = ?');
+            queryParams.push(vendedor);
+        }
+        
         if (whereConditions.length > 0) {
             query += ' WHERE ' + whereConditions.join(' AND ');
         }
@@ -1627,7 +1471,7 @@ app.get('/api/ventas', async (req, res) => {
             case 'total_asc':
                 query += ' ORDER BY v.total ASC';
                 break;
-            default: // fecha_desc
+            default:
                 query += ' ORDER BY v.fecha DESC, v.hora DESC';
         }
         
@@ -1647,171 +1491,7 @@ app.get('/api/ventas', async (req, res) => {
     }
 });
 
-// 7. Estadísticas de ventas (movido antes de /api/ventas/:id)
-app.get('/api/ventas/estadisticas', async (req, res) => {
-    try {
-        console.log('📈 Calculando estadísticas de ventas...');
-        
-        const queries = {
-            ventasHoy: `
-                SELECT 
-                    COUNT(*) as total, 
-                    COALESCE(SUM(total), 0) as monto_total 
-                FROM venta 
-                WHERE DATE(fecha) = CURDATE()
-            `,
-            ventasMes: `
-                SELECT 
-                    COUNT(*) as total, 
-                    COALESCE(SUM(total), 0) as monto_total 
-                FROM venta 
-                WHERE MONTH(fecha) = MONTH(CURDATE()) 
-                AND YEAR(fecha) = YEAR(CURDATE())
-            `,
-            ticketPromedio: `
-                SELECT COALESCE(AVG(total), 0) as promedio 
-                FROM venta
-                WHERE YEAR(fecha) = YEAR(CURDATE())
-            `,
-            productosVendidos: `
-                SELECT COALESCE(SUM(cantidad), 0) as total 
-                FROM detalle_venta dv
-                JOIN venta v ON dv.id_venta = v.id_venta
-                WHERE YEAR(v.fecha) = YEAR(CURDATE())
-            `,
-            topClientes: `
-                SELECT 
-                    c.nombre,
-                    COUNT(v.id_venta) as ventas_count,
-                    COALESCE(SUM(v.total), 0) as monto_total
-                FROM cliente c
-                LEFT JOIN venta v ON c.id_cliente = v.id_cliente
-                WHERE v.id_venta IS NOT NULL
-                GROUP BY c.id_cliente, c.nombre
-                ORDER BY monto_total DESC
-                LIMIT 5
-            `,
-            ventasPorMetodo: `
-                SELECT 
-                    metodo_pago,
-                    COUNT(*) as cantidad,
-                    COALESCE(SUM(total), 0) as monto_total
-                FROM venta
-                WHERE metodo_pago IS NOT NULL
-                GROUP BY metodo_pago
-                ORDER BY monto_total DESC
-            `,
-            ventasPorDia: `
-                SELECT 
-                    fecha,
-                    COUNT(*) as cantidad_ventas,
-                    COALESCE(SUM(total), 0) as monto_total
-                FROM venta
-                WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-                GROUP BY fecha
-                ORDER BY fecha ASC
-            `
-        };
-        
-        const results = {};
-        
-        // Ejecutar todas las consultas en paralelo
-        await Promise.all(
-            Object.entries(queries).map(async ([key, query]) => {
-                try {
-                    console.log(`📊 Ejecutando consulta: ${key}`);
-                    const [data] = await db.promise().query(query);
-                    results[key] = data;
-                    console.log(`✅ ${key}: ${JSON.stringify(data)}`);
-                } catch (error) {
-                    console.error(`❌ Error en consulta ${key}:`, error.message);
-                    results[key] = key.includes('top') || key.includes('Por') ? [] : 0;
-                }
-            })
-        );
-        
-        console.log('✅ Estadísticas calculadas exitosamente');
-        res.json(results);
-        
-    } catch (error) {
-        console.error('❌ Error obteniendo estadísticas:', error.message);
-        res.status(500).json({ 
-            error: 'Error al obtener estadísticas',
-            details: error.message
-        });
-    }
-});
-
-// 8. Obtener productos con stock para venta 
-app.get('/api/productos/stock', async (req, res) => {
-    try {
-        console.log('📦 Obteniendo productos con stock...');
-        
-        const query = `
-            SELECT 
-                id_producto,
-                nombre,
-                marca,
-                numero_parte,
-                precio_venta,
-                stock_actual,
-                stock_minimo
-            FROM producto 
-            WHERE stock_actual > 0
-            ORDER BY nombre ASC
-        `;
-        
-        const [results] = await db.promise().query(query);
-        console.log(`✅ ${results.length} productos con stock encontrados`);
-        
-        res.json(results);
-    } catch (err) {
-        console.error('❌ Error obteniendo productos con stock:', err.message);
-        res.status(500).json({ 
-            error: 'Error al obtener productos con stock',
-            details: err.message
-        });
-    }
-});
-
-// 9. Buscar productos para venta 
-app.get('/api/productos/buscar/:termino', async (req, res) => {
-    try {
-        const termino = req.params.termino;
-        console.log(`🔍 Buscando productos: "${termino}"`);
-        
-        const searchTerm = `%${termino}%`;
-        
-        const query = `
-            SELECT 
-                id_producto,
-                nombre,
-                marca,
-                numero_parte,
-                precio_venta,
-                stock_actual,
-                stock_minimo
-            FROM producto 
-            WHERE (nombre LIKE ? OR marca LIKE ? OR numero_parte LIKE ?)
-                AND stock_actual > 0
-            ORDER BY nombre ASC
-            LIMIT 20
-        `;
-        
-        const [results] = await db.promise().query(query, [searchTerm, searchTerm, searchTerm]);
-        console.log(`✅ ${results.length} productos encontrados para "${termino}"`);
-        
-        res.json(results);
-    } catch (err) {
-        console.error('❌ Error buscando productos:', err.message);
-        res.status(500).json({ 
-            error: 'Error al buscar productos',
-            details: err.message
-        });
-    }
-});
-
-// 2. Obtener venta por ID
+// 2. Obtener venta por ID (con cliente y vendedor)
 app.get('/api/ventas/:id', async (req, res) => {
     try {
         const ventaId = req.params.id;
@@ -1823,9 +1503,14 @@ app.get('/api/ventas/:id', async (req, res) => {
                 c.nombre as cliente_nombre,
                 c.telefono as cliente_telefono,
                 c.email as cliente_email,
-                c.direccion as cliente_direccion
+                c.direccion as cliente_direccion,
+                c.rfc as cliente_rfc,
+                u.nombre as vendedor_nombre,
+                u.email as vendedor_email,
+                u.id_usuario as vendedor_id
             FROM venta v
             LEFT JOIN cliente c ON v.id_cliente = c.id_cliente
+            LEFT JOIN usuario u ON v.id_usuario = u.id_usuario
             WHERE v.id_venta = ?
         `;
         
@@ -1836,7 +1521,7 @@ app.get('/api/ventas/:id', async (req, res) => {
             return res.status(404).json({ error: 'Venta no encontrada' });
         }
         
-        console.log(`✅ Venta ${ventaId} encontrada`);
+        console.log(`✅ Venta ${ventaId} encontrada - Vendedor: ${results[0].vendedor_nombre || 'No asignado'}`);
         res.json(results[0]);
     } catch (err) {
         console.error('❌ Error obteniendo venta:', err.message);
@@ -1859,9 +1544,11 @@ app.get('/api/ventas/:id/detalles', async (req, res) => {
                 p.nombre as producto_nombre,
                 p.marca as producto_marca,
                 p.numero_parte,
-                p.id_categoria
+                p.id_categoria,
+                cat.nombre as categoria_nombre
             FROM detalle_venta dv
             LEFT JOIN producto p ON dv.id_producto = p.id_producto
+            LEFT JOIN categoria cat ON p.id_categoria = cat.id_categoria
             WHERE dv.id_venta = ?
             ORDER BY dv.id_detalle
         `;
@@ -1879,12 +1566,12 @@ app.get('/api/ventas/:id/detalles', async (req, res) => {
     }
 });
 
-// 4. Crear nueva venta 
+// 4. Crear nueva venta (CON VENDEDOR)
 app.post('/api/ventas', async (req, res) => {
     console.log('🔄 Recibiendo solicitud para crear nueva venta...');
     console.log('📦 Datos recibidos:', JSON.stringify(req.body, null, 2));
     
-    const { venta, detalles } = req.body;
+    const { venta, detalles, id_usuario } = req.body;
     
     // Validaciones básicas
     if (!venta || !detalles || !Array.isArray(detalles) || detalles.length === 0) {
@@ -1918,16 +1605,25 @@ app.post('/api/ventas', async (req, res) => {
         });
     }
     
+    // Validar que se tenga el ID del vendedor
+    if (!id_usuario) {
+        console.error('❌ No se proporcionó ID del vendedor');
+        return res.status(400).json({ 
+            error: 'Datos de venta incompletos',
+            details: 'Se requiere el ID del vendedor (id_usuario)'
+        });
+    }
+    
     try {
         console.log('🔐 Iniciando transacción...');
         
-        // Iniciar transacción usando db.promise().query
+        // Iniciar transacción
         await db.promise().query('START TRANSACTION');
         
         // 1. Verificar que el cliente existe
         console.log(`👤 Verificando cliente ID: ${id_cliente}`);
         const [clienteResult] = await db.promise().query(
-            'SELECT id_cliente FROM cliente WHERE id_cliente = ?',
+            'SELECT id_cliente, nombre FROM cliente WHERE id_cliente = ?',
             [id_cliente]
         );
         
@@ -1939,9 +1635,26 @@ app.post('/api/ventas', async (req, res) => {
                 details: `Cliente con ID ${id_cliente} no existe`
             });
         }
-        console.log('✅ Cliente verificado');
+        console.log(`✅ Cliente verificado: ${clienteResult[0].nombre}`);
         
-        // 2. Verificar stock de todos los productos
+        // 2. Verificar que el vendedor existe y está activo
+        console.log(`👤 Verificando vendedor ID: ${id_usuario}`);
+        const [vendedorResult] = await db.promise().query(
+            'SELECT id_usuario, nombre, rol, activo FROM usuario WHERE id_usuario = ? AND activo = 1',
+            [id_usuario]
+        );
+        
+        if (vendedorResult.length === 0) {
+            await db.promise().query('ROLLBACK');
+            console.error(`❌ Vendedor con ID ${id_usuario} no encontrado o inactivo`);
+            return res.status(404).json({ 
+                error: 'Vendedor no encontrado',
+                details: 'El vendedor no existe o está inactivo'
+            });
+        }
+        console.log(`✅ Vendedor verificado: ${vendedorResult[0].nombre} (${vendedorResult[0].rol})`);
+        
+        // 3. Verificar stock de todos los productos
         console.log('📦 Verificando stock de productos...');
         for (const detalle of detalles) {
             const [stockResult] = await db.promise().query(
@@ -1959,7 +1672,7 @@ app.post('/api/ventas', async (req, res) => {
             }
             
             const producto = stockResult[0];
-            console.log(`📊 Producto ${producto.nombre}: Stock actual = ${producto.stock_actual}, Solicitado = ${detalle.cantidad}`);
+            console.log(`📊 Producto ${producto.nombre}: Stock = ${producto.stock_actual}, Solicitado = ${detalle.cantidad}`);
             
             if (producto.stock_actual < detalle.cantidad) {
                 await db.promise().query('ROLLBACK');
@@ -1972,12 +1685,12 @@ app.post('/api/ventas', async (req, res) => {
         }
         console.log('✅ Stock verificado para todos los productos');
         
-        // 3. Insertar venta
+        // 4. Insertar venta (CON ID_USUARIO)
         console.log('💾 Insertando venta en la base de datos...');
         const insertVentaQuery = `
             INSERT INTO venta 
-            (fecha, hora, total, id_cliente, metodo_pago, pago_con, cambio, notas) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (fecha, hora, total, id_cliente, metodo_pago, pago_con, cambio, notas, id_usuario) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const pagoConValor = pago_con ? parseFloat(pago_con) : parseFloat(total);
@@ -1991,13 +1704,14 @@ app.post('/api/ventas', async (req, res) => {
             metodo_pago,
             pagoConValor,
             cambioValor,
-            notas || null
+            notas || null,
+            parseInt(id_usuario)
         ]);
         
         const nuevaVentaId = ventaResult.insertId;
-        console.log(`✅ Venta insertada con ID: ${nuevaVentaId}`);
+        console.log(`✅ Venta insertada con ID: ${nuevaVentaId} (Vendedor ID: ${id_usuario})`);
         
-        // 4. Insertar detalles y actualizar stock
+        // 5. Insertar detalles y actualizar stock
         console.log('📝 Insertando detalles de venta...');
         for (const detalle of detalles) {
             // Insertar detalle
@@ -2032,18 +1746,21 @@ app.post('/api/ventas', async (req, res) => {
             console.log(`✅ Stock actualizado para producto ${detalle.id_producto}`);
         }
         
-        // 5. Confirmar transacción
+        // 6. Confirmar transacción
         await db.promise().query('COMMIT');
         console.log('✅ Transacción completada exitosamente');
         
-        // 6. Obtener datos completos de la venta creada
+        // 7. Obtener datos completos de la venta creada
         const [ventaCompleta] = await db.promise().query(`
             SELECT 
                 v.*,
                 c.nombre as cliente_nombre,
-                c.telefono as cliente_telefono
+                c.telefono as cliente_telefono,
+                u.nombre as vendedor_nombre,
+                u.email as vendedor_email
             FROM venta v
             LEFT JOIN cliente c ON v.id_cliente = c.id_cliente
+            LEFT JOIN usuario u ON v.id_usuario = u.id_usuario
             WHERE v.id_venta = ?
         `, [nuevaVentaId]);
         
@@ -2074,16 +1791,49 @@ app.post('/api/ventas', async (req, res) => {
         });
     }
 });
-// 5. Cancelar venta 
+
+// 5. Cancelar venta (con verificación de permisos)
 app.delete('/api/ventas/:id', async (req, res) => {
     const ventaId = req.params.id;
-    console.log(`🗑️  Solicitando cancelación de venta ID: ${ventaId}`);
+    const { id_usuario, rol } = req.body; // Quién está cancelando
+    
+    console.log(`🗑️ Solicitando cancelación de venta ID: ${ventaId} por usuario: ${id_usuario}`);
+    
+    if (!id_usuario) {
+        return res.status(400).json({ error: 'Se requiere ID del usuario que realiza la cancelación' });
+    }
     
     try {
         console.log('🔐 Iniciando transacción de cancelación...');
         await db.promise().query('START TRANSACTION');
         
-        // 1. Obtener detalles de la venta para revertir stock
+        // 1. Obtener información de la venta
+        const [ventaInfo] = await db.promise().query(`
+            SELECT v.*, u.nombre as vendedor_nombre 
+            FROM venta v
+            LEFT JOIN usuario u ON v.id_usuario = u.id_usuario
+            WHERE v.id_venta = ?
+        `, [ventaId]);
+        
+        if (ventaInfo.length === 0) {
+            await db.promise().query('ROLLBACK');
+            return res.status(404).json({ error: 'Venta no encontrada' });
+        }
+        
+        const venta = ventaInfo[0];
+        console.log(`📊 Venta encontrada - Vendedor original: ${venta.vendedor_nombre || 'N/A'}`);
+        
+        // 2. Verificar permisos (solo admin o el mismo vendedor pueden cancelar)
+        if (rol !== 'admin' && venta.id_usuario !== parseInt(id_usuario)) {
+            await db.promise().query('ROLLBACK');
+            console.log(`❌ Usuario ${id_usuario} no tiene permiso para cancelar esta venta`);
+            return res.status(403).json({ 
+                error: 'Permiso denegado',
+                details: 'Solo el vendedor que realizó la venta o un administrador pueden cancelarla'
+            });
+        }
+        
+        // 3. Obtener detalles de la venta para revertir stock
         const getDetallesQuery = `
             SELECT dv.id_producto, dv.cantidad, p.nombre 
             FROM detalle_venta dv
@@ -2101,7 +1851,7 @@ app.delete('/api/ventas/:id', async (req, res) => {
         
         console.log(`📊 Encontrados ${detalles.length} detalles para revertir`);
         
-        // 2. Revertir stock de productos
+        // 4. Revertir stock de productos
         for (const detalle of detalles) {
             const revertStockQuery = `
                 UPDATE producto 
@@ -2112,12 +1862,12 @@ app.delete('/api/ventas/:id', async (req, res) => {
             console.log(`✅ Stock revertido: Producto ${detalle.id_producto}, +${detalle.cantidad} unidades`);
         }
         
-        // 3. Eliminar detalles de venta
+        // 5. Eliminar detalles de venta
         const deleteDetallesQuery = 'DELETE FROM detalle_venta WHERE id_venta = ?';
         await db.promise().query(deleteDetallesQuery, [ventaId]);
         console.log('✅ Detalles de venta eliminados');
         
-        // 4. Eliminar venta
+        // 6. Eliminar venta
         const deleteVentaQuery = 'DELETE FROM venta WHERE id_venta = ?';
         const [result] = await db.promise().query(deleteVentaQuery, [ventaId]);
         
@@ -2127,16 +1877,18 @@ app.delete('/api/ventas/:id', async (req, res) => {
             return res.status(404).json({ error: 'Venta no encontrada' });
         }
         
-        console.log(`✅ Venta ${ventaId} eliminada`);
+        console.log(`✅ Venta ${ventaId} eliminada por usuario ${id_usuario}`);
         
-        // 5. Confirmar transacción
+        // 7. Confirmar transacción
         await db.promise().query('COMMIT');
         console.log('✅ Transacción de cancelación completada');
         
         res.json({
             success: true,
             message: 'Venta cancelada exitosamente y stock revertido',
-            ventaId: ventaId
+            ventaId: ventaId,
+            cancelada_por: id_usuario,
+            fecha_cancelacion: new Date().toISOString()
         });
         
     } catch (error) {
@@ -2154,13 +1906,13 @@ app.delete('/api/ventas/:id', async (req, res) => {
     }
 });
 
-// 6. Generar datos para factura (JSON) 
+// 6. Generar datos para factura (con datos del vendedor)
 app.get('/api/ventas/:id/factura', async (req, res) => {
     try {
         const ventaId = req.params.id;
         console.log(`🧾 Generando factura para venta ID: ${ventaId}`);
         
-        // Obtener datos de la venta con RFC del cliente
+        // Obtener datos de la venta con cliente y vendedor
         const ventaQuery = `
             SELECT 
                 v.*,
@@ -2170,9 +1922,13 @@ app.get('/api/ventas/:id/factura', async (req, res) => {
                 c.direccion as cliente_direccion,
                 c.ciudad as cliente_ciudad,
                 c.estado as cliente_estado,
-                c.rfc as cliente_rfc
+                c.rfc as cliente_rfc,
+                u.nombre as vendedor_nombre,
+                u.email as vendedor_email,
+                u.id_usuario as vendedor_id
             FROM venta v
             LEFT JOIN cliente c ON v.id_cliente = c.id_cliente
+            LEFT JOIN usuario u ON v.id_usuario = u.id_usuario
             WHERE v.id_venta = ?
         `;
         
@@ -2184,7 +1940,7 @@ app.get('/api/ventas/:id/factura', async (req, res) => {
         }
         
         const venta = ventaResult[0];
-        console.log('📊 Datos de venta obtenidos:', venta);
+        console.log(`📊 Datos de venta obtenidos - Vendedor: ${venta.vendedor_nombre || 'No asignado'}`);
         
         // Obtener detalles de la venta
         const detallesQuery = `
@@ -2227,16 +1983,15 @@ app.get('/api/ventas/:id/factura', async (req, res) => {
                 rfc: 'LEX123456ABC',
                 telefono: '951-123-4567',
                 email: 'ventas@refaccionarialexus.com'
+            },
+            vendedor: {
+                nombre: venta.vendedor_nombre || 'No asignado',
+                email: venta.vendedor_email || 'No registrado',
+                id: venta.vendedor_id || null
             }
         };
         
-        console.log(`✅ Factura generada para venta ${ventaId}`);
-        console.log('📄 Datos de factura:', {
-            ventaId: venta.id_venta,
-            cliente: venta.cliente_nombre,
-            rfc: venta.cliente_rfc || 'No especificado',
-            total: facturaData.total
-        });
+        console.log(`✅ Factura generada para venta ${ventaId} - Vendedor: ${facturaData.vendedor.nombre}`);
         
         res.json({
             success: true,
@@ -2249,12 +2004,185 @@ app.get('/api/ventas/:id/factura', async (req, res) => {
         res.status(500).json({ 
             success: false,
             error: 'Error al generar factura',
-            details: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            details: error.message
         });
     }
 });
 
+// 7. Obtener estadísticas de ventas (con filtro por vendedor)
+app.get('/api/ventas/estadisticas', async (req, res) => {
+    try {
+        console.log('📈 Calculando estadísticas de ventas...');
+        
+        const { vendedor_id } = req.query;
+        const vendedorFilter = vendedor_id ? `AND id_usuario = ${parseInt(vendedor_id)}` : '';
+        
+        const queries = {
+            ventasHoy: `
+                SELECT 
+                    COUNT(*) as total, 
+                    COALESCE(SUM(total), 0) as monto_total 
+                FROM venta 
+                WHERE DATE(fecha) = CURDATE()
+                ${vendedorFilter}
+            `,
+            ventasMes: `
+                SELECT 
+                    COUNT(*) as total, 
+                    COALESCE(SUM(total), 0) as monto_total 
+                FROM venta 
+                WHERE MONTH(fecha) = MONTH(CURDATE()) 
+                AND YEAR(fecha) = YEAR(CURDATE())
+                ${vendedorFilter}
+            `,
+            ticketPromedio: `
+                SELECT COALESCE(AVG(total), 0) as promedio 
+                FROM venta
+                WHERE YEAR(fecha) = YEAR(CURDATE())
+                ${vendedorFilter}
+            `,
+            productosVendidos: `
+                SELECT COALESCE(SUM(cantidad), 0) as total 
+                FROM detalle_venta dv
+                JOIN venta v ON dv.id_venta = v.id_venta
+                WHERE YEAR(v.fecha) = YEAR(CURDATE())
+                ${vendedorFilter}
+            `,
+            topClientes: `
+                SELECT 
+                    c.nombre,
+                    COUNT(v.id_venta) as ventas_count,
+                    COALESCE(SUM(v.total), 0) as monto_total
+                FROM cliente c
+                LEFT JOIN venta v ON c.id_cliente = v.id_cliente
+                WHERE v.id_venta IS NOT NULL
+                ${vendedorFilter}
+                GROUP BY c.id_cliente, c.nombre
+                ORDER BY monto_total DESC
+                LIMIT 5
+            `,
+            ventasPorMetodo: `
+                SELECT 
+                    metodo_pago,
+                    COUNT(*) as cantidad,
+                    COALESCE(SUM(total), 0) as monto_total
+                FROM venta
+                WHERE metodo_pago IS NOT NULL
+                ${vendedorFilter}
+                GROUP BY metodo_pago
+                ORDER BY monto_total DESC
+            `,
+            ventasPorVendedor: `
+                SELECT 
+                    u.id_usuario,
+                    u.nombre as vendedor_nombre,
+                    COUNT(v.id_venta) as total_ventas,
+                    COALESCE(SUM(v.total), 0) as monto_total
+                FROM usuario u
+                LEFT JOIN venta v ON u.id_usuario = v.id_usuario
+                WHERE u.rol = 'vendedor' OR u.rol = 'admin'
+                GROUP BY u.id_usuario, u.nombre
+                ORDER BY monto_total DESC
+            `
+        };
+        
+        const results = {};
+        
+        // Ejecutar todas las consultas en paralelo
+        await Promise.all(
+            Object.entries(queries).map(async ([key, query]) => {
+                try {
+                    console.log(`📊 Ejecutando consulta: ${key}`);
+                    const [data] = await db.promise().query(query);
+                    results[key] = data;
+                    console.log(`✅ ${key}: ${JSON.stringify(data).substring(0, 100)}...`);
+                } catch (error) {
+                    console.error(`❌ Error en consulta ${key}:`, error.message);
+                    results[key] = key.includes('top') || key.includes('Por') || key.includes('Vendedor') ? [] : 0;
+                }
+            })
+        );
+        
+        console.log('✅ Estadísticas calculadas exitosamente');
+        res.json(results);
+        
+    } catch (error) {
+        console.error('❌ Error obteniendo estadísticas:', error.message);
+        res.status(500).json({ 
+            error: 'Error al obtener estadísticas',
+            details: error.message
+        });
+    }
+});
+
+// 8. Obtener productos con stock para venta
+app.get('/api/productos/stock', async (req, res) => {
+    try {
+        console.log('📦 Obteniendo productos con stock...');
+        
+        const query = `
+            SELECT 
+                id_producto,
+                nombre,
+                marca,
+                numero_parte,
+                precio_venta,
+                stock_actual,
+                stock_minimo
+            FROM producto 
+            WHERE stock_actual > 0
+            ORDER BY nombre ASC
+        `;
+        
+        const [results] = await db.promise().query(query);
+        console.log(`✅ ${results.length} productos con stock encontrados`);
+        
+        res.json(results);
+    } catch (err) {
+        console.error('❌ Error obteniendo productos con stock:', err.message);
+        res.status(500).json({ 
+            error: 'Error al obtener productos con stock',
+            details: err.message
+        });
+    }
+});
+
+// 9. Buscar productos para venta
+app.get('/api/productos/buscar/:termino', async (req, res) => {
+    try {
+        const termino = req.params.termino;
+        console.log(`🔍 Buscando productos: "${termino}"`);
+        
+        const searchTerm = `%${termino}%`;
+        
+        const query = `
+            SELECT 
+                id_producto,
+                nombre,
+                marca,
+                numero_parte,
+                precio_venta,
+                stock_actual,
+                stock_minimo
+            FROM producto 
+            WHERE (nombre LIKE ? OR marca LIKE ? OR numero_parte LIKE ?)
+                AND stock_actual > 0
+            ORDER BY nombre ASC
+            LIMIT 20
+        `;
+        
+        const [results] = await db.promise().query(query, [searchTerm, searchTerm, searchTerm]);
+        console.log(`✅ ${results.length} productos encontrados para "${termino}"`);
+        
+        res.json(results);
+    } catch (err) {
+        console.error('❌ Error buscando productos:', err.message);
+        res.status(500).json({ 
+            error: 'Error al buscar productos',
+            details: err.message
+        });
+    }
+});
 
 // 10. Obtener métodos de pago disponibles
 app.get('/api/metodos-pago', (req, res) => {
@@ -2271,7 +2199,7 @@ app.get('/api/metodos-pago', (req, res) => {
     res.json(metodos);
 });
 
-// 11. Obtener productos por ID (para venta)
+// 11. Obtener producto por ID
 app.get('/api/productos/:id', async (req, res) => {
     try {
         const productoId = req.params.id;
@@ -2295,7 +2223,7 @@ app.get('/api/productos/:id', async (req, res) => {
             return res.status(404).json({ error: 'Producto no encontrado' });
         }
         
-        console.log(`✅ Producto ${productoId} encontrado`);
+        console.log(`✅ Producto ${productoId} encontrado: ${results[0].nombre}`);
         res.json(results[0]);
     } catch (err) {
         console.error('❌ Error obteniendo producto:', err.message);
@@ -2306,18 +2234,20 @@ app.get('/api/productos/:id', async (req, res) => {
     }
 });
 
-// 12. Obtener ventas con filtros
+// 12. Obtener ventas con filtros avanzados
 app.get('/api/ventas/filtradas', async (req, res) => {
     try {
-        const { fechaInicio, fechaFin, clienteId, metodoPago } = req.query;
+        const { fechaInicio, fechaFin, clienteId, metodoPago, vendedorId } = req.query;
         console.log('🔍 Filtrando ventas con parámetros:', req.query);
         
         let query = `
             SELECT 
                 v.*,
-                c.nombre as cliente_nombre
+                c.nombre as cliente_nombre,
+                u.nombre as vendedor_nombre
             FROM venta v
             LEFT JOIN cliente c ON v.id_cliente = c.id_cliente
+            LEFT JOIN usuario u ON v.id_usuario = u.id_usuario
             WHERE 1=1
         `;
         
@@ -2341,6 +2271,11 @@ app.get('/api/ventas/filtradas', async (req, res) => {
         if (metodoPago) {
             query += ' AND v.metodo_pago = ?';
             params.push(metodoPago);
+        }
+        
+        if (vendedorId) {
+            query += ' AND v.id_usuario = ?';
+            params.push(vendedorId);
         }
         
         query += ' ORDER BY v.fecha DESC, v.hora DESC';
@@ -2395,35 +2330,35 @@ app.get('/api/productos/:id/disponible/:cantidad', async (req, res) => {
         res.status(500).json({ 
             disponible: false,
             error: 'Error al verificar disponibilidad',
-            details: err.message
-        });
+            details: err.message        });
     }
 });
 
-// 14. Obtener resumen diario de ventas
+// 14. Obtener resumen diario de ventas (con filtro por vendedor)
 app.get('/api/ventas/resumen/diario', async (req, res) => {
     try {
         console.log('📅 Generando resumen diario de ventas...');
         
+        const { vendedor_id } = req.query;
+        const vendedorFilter = vendedor_id ? `AND v.id_usuario = ${parseInt(vendedor_id)}` : '';
+        
         const query = `
             SELECT 
-                DATE(fecha) as fecha,
+                DATE(v.fecha) as fecha,
                 COUNT(*) as total_ventas,
-                SUM(total) as monto_total,
-                AVG(total) as promedio_venta,
-                SUM(
-                    SELECT COUNT(*) 
-                    FROM detalle_venta dv 
-                    WHERE dv.id_venta = v.id_venta
-                ) as total_productos
+                SUM(v.total) as monto_total,
+                AVG(v.total) as promedio_venta,
+                u.nombre as vendedor_nombre
             FROM venta v
-            WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            GROUP BY DATE(fecha)
+            LEFT JOIN usuario u ON v.id_usuario = u.id_usuario
+            WHERE v.fecha >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+            ${vendedorFilter}
+            GROUP BY DATE(v.fecha), u.id_usuario, u.nombre
             ORDER BY fecha DESC
         `;
         
         const [results] = await db.promise().query(query);
-        console.log(`✅ Resumen diario generado: ${results.length} días`);
+        console.log(`✅ Resumen diario generado: ${results.length} registros`);
         
         res.json(results);
     } catch (err) {
@@ -2440,17 +2375,22 @@ app.get('/api/ventas/top-productos', async (req, res) => {
     try {
         console.log('🏆 Obteniendo top productos vendidos...');
         
+        const { vendedor_id } = req.query;
+        const vendedorFilter = vendedor_id ? `AND v.id_usuario = ${parseInt(vendedor_id)}` : '';
+        
         const query = `
             SELECT 
                 p.nombre,
                 p.marca,
                 p.numero_parte,
                 SUM(dv.cantidad) as total_vendido,
-                SUM(dv.subtotal) as monto_total
+                SUM(dv.subtotal) as monto_total,
+                COUNT(DISTINCT v.id_venta) as ventas_realizadas
             FROM detalle_venta dv
             JOIN producto p ON dv.id_producto = p.id_producto
             JOIN venta v ON dv.id_venta = v.id_venta
             WHERE v.fecha >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+            ${vendedorFilter}
             GROUP BY p.id_producto, p.nombre, p.marca, p.numero_parte
             ORDER BY total_vendido DESC
             LIMIT 10
@@ -2468,195 +2408,109 @@ app.get('/api/ventas/top-productos', async (req, res) => {
         });
     }
 });
-// ================================
-// ===== GENERACIÓN DE PDF REAL ===
-// ================================
 
-const PDFDocument = require('pdfkit');
-
-// Generar PDF de factura real
-app.get('/api/ventas/:id/factura/pdf', async (req, res) => {
-    const ventaId = req.params.id;
-    
+// 16. Obtener vendedores disponibles
+app.get('/api/vendedores', async (req, res) => {
     try {
-        // Obtener datos de la venta
-        const [ventaResult] = await db.promise().query(`
-            SELECT v.*, c.* 
-            FROM venta v 
-            LEFT JOIN cliente c ON v.id_cliente = c.id_cliente 
-            WHERE v.id_venta = ?
-        `, [ventaId]);
+        console.log('👥 Obteniendo lista de vendedores...');
         
-        if (ventaResult.length === 0) {
-            return res.status(404).json({ error: 'Venta no encontrada' });
-        }
+        const query = `
+            SELECT id_usuario, nombre, email, rol
+            FROM usuario 
+            WHERE rol IN ('admin', 'vendedor') AND activo = 1
+            ORDER BY nombre ASC
+        `;
         
-        const venta = ventaResult[0];
+        const [results] = await db.promise().query(query);
+        console.log(`✅ ${results.length} vendedores encontrados`);
         
-        // Obtener detalles
-        const [detallesResult] = await db.promise().query(`
-            SELECT dv.*, p.nombre as producto_nombre, p.marca, p.numero_parte
-            FROM detalle_venta dv
-            LEFT JOIN producto p ON dv.id_producto = p.id_producto
-            WHERE dv.id_venta = ?
-            ORDER BY dv.id_detalle
-        `, [ventaId]);
-        
-        // Crear documento PDF
-        const doc = new PDFDocument({ margin: 50, size: 'A4' });
-        
-        // Configurar encabezados de respuesta
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="factura-${ventaId}.pdf"`);
-        
-        doc.pipe(res);
-        
-        // Encabezado de la factura
-        doc.fontSize(20).font('Helvetica-Bold').text('REFACCIONARIA LEXUS', { align: 'center' });
-        doc.moveDown(0.5);
-        doc.fontSize(12).font('Helvetica').text('Calle Principal #123, Oaxaca, México', { align: 'center' });
-        doc.text('RFC: LEX123456ABC | Tel: 951-123-4567', { align: 'center' });
-        doc.text('Email: ventas@refaccionarialexus.com', { align: 'center' });
-        
-        doc.moveDown(1);
-        doc.fontSize(16).font('Helvetica-Bold').text(`FACTURA #${ventaId}`, { align: 'center', underline: true });
-        
-        // Información de cliente y venta
-        doc.moveDown(1);
-        doc.fontSize(10);
-        
-        const startX = 50;
-        let y = doc.y;
-        
-        // Columna izquierda: Datos del cliente
-        doc.font('Helvetica-Bold').text('DATOS DEL CLIENTE:', startX, y);
-        y += 20;
-        doc.font('Helvetica').text(`Nombre: ${venta.nombre || 'Cliente no registrado'}`);
-        y += 15;
-        doc.text(`Dirección: ${venta.direccion || 'No especificada'}`);
-        y += 15;
-        doc.text(`Teléfono: ${venta.telefono || 'No registrado'}`);
-        y += 15;
-        doc.text(`Email: ${venta.email || 'No registrado'}`);
-        
-        // Columna derecha: Datos de factura
-        const rightX = 300;
-        y = doc.y - 60;
-        doc.font('Helvetica-Bold').text('DATOS DE LA FACTURA:', rightX, y);
-        y += 20;
-        doc.font('Helvetica').text(`Fecha de venta: ${venta.fecha}`, rightX, y);
-        y += 15;
-        doc.text(`Hora: ${venta.hora}`, rightX, y);
-        y += 15;
-        doc.text(`Fecha de emisión: ${new Date().toLocaleDateString('es-MX')}`, rightX, y);
-        y += 15;
-        doc.text(`Método de pago: ${venta.metodo_pago}`, rightX, y);
-        
-        // Tabla de productos
-        doc.moveDown(2);
-        const tableTop = doc.y;
-        
-        // Encabezados de tabla
-        doc.font('Helvetica-Bold');
-        doc.text('#', 50, tableTop);
-        doc.text('Descripción', 70, tableTop);
-        doc.text('Cant.', 350, tableTop);
-        doc.text('Precio', 400, tableTop);
-        doc.text('Importe', 450, tableTop);
-        
-        // Línea bajo encabezados
-        doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).stroke();
-        
-        let yTable = tableTop + 25;
-        doc.font('Helvetica');
-        
-        let subtotal = 0;
-        
-        // Filas de productos
-        detallesResult.forEach((detalle, index) => {
-            doc.text((index + 1).toString(), 50, yTable);
-            doc.text(detalle.producto_nombre.substring(0, 40), 70, yTable);
-            doc.text(detalle.cantidad.toString(), 350, yTable);
-            doc.text(`$${parseFloat(detalle.precio_unitario).toFixed(2)}`, 400, yTable);
-            doc.text(`$${parseFloat(detalle.subtotal).toFixed(2)}`, 450, yTable);
-            
-            subtotal += parseFloat(detalle.subtotal);
-            yTable += 20;
+        res.json(results);
+    } catch (err) {
+        console.error('❌ Error obteniendo vendedores:', err.message);
+        res.status(500).json({ 
+            error: 'Error al obtener vendedores',
+            details: err.message
         });
-        
-        // Totales
-        const iva = subtotal * 0.16;
-        const total = subtotal + iva;
-        
-        yTable += 10;
-        doc.text('Subtotal:', 350, yTable);
-        doc.text(`$${subtotal.toFixed(2)}`, 450, yTable);
-        
-        yTable += 20;
-        doc.text('IVA (16%):', 350, yTable);
-        doc.text(`$${iva.toFixed(2)}`, 450, yTable);
-        
-        yTable += 20;
-        doc.font('Helvetica-Bold').text('TOTAL:', 350, yTable);
-        doc.font('Helvetica-Bold').text(`$${total.toFixed(2)}`, 450, yTable);
-        
-        // Notas
-        if (venta.notas) {
-            yTable += 40;
-            doc.font('Helvetica').text('Notas:', 50, yTable);
-            yTable += 15;
-            doc.font('Helvetica').text(venta.notas, 50, yTable, { width: 500 });
-        }
-        
-        // Pie de página
-        yTable += 50;
-        doc.text('Gracias por su compra!', 50, yTable);
-        doc.text('Este documento es una representación digital válida para efectos fiscales.', 50, yTable + 20);
-        
-        // Finalizar documento
-        doc.end();
-        
-    } catch (error) {
-        console.error('Error generando PDF:', error);
-        res.status(500).json({ error: error.message });
     }
 });
-/////
-/////
-// Ruta de debug para verificar rutas
-app.get('/api/debug/routes', (req, res) => {
-    const routes = app._router.stack
-        .filter(r => r.route)
-        .map(r => ({
-            path: r.route.path,
-            methods: Object.keys(r.route.methods)
-        }));
-    
-    res.json({
-        totalRoutes: routes.length,
-        routes: routes
+
+// 17. Obtener estadísticas por vendedor
+app.get('/api/estadisticas/vendedores', async (req, res) => {
+    try {
+        console.log('📊 Generando estadísticas por vendedor...');
+        
+        const query = `
+            SELECT 
+                u.id_usuario,
+                u.nombre as vendedor_nombre,
+                u.email as vendedor_email,
+                COUNT(v.id_venta) as total_ventas,
+                COALESCE(SUM(v.total), 0) as monto_total,
+                COALESCE(AVG(v.total), 0) as promedio_venta,
+                MAX(v.fecha) as ultima_venta,
+                MIN(v.fecha) as primera_venta
+            FROM usuario u
+            LEFT JOIN venta v ON u.id_usuario = v.id_usuario
+            WHERE u.rol IN ('vendedor', 'admin') AND u.activo = 1
+            GROUP BY u.id_usuario, u.nombre, u.email
+            ORDER BY monto_total DESC
+        `;
+        
+        const [results] = await db.promise().query(query);
+        console.log(`✅ Estadísticas por vendedor generadas: ${results.length} vendedores`);
+        
+        res.json(results);
+    } catch (err) {
+        console.error('❌ Error obteniendo estadísticas por vendedor:', err.message);
+        res.status(500).json({ 
+            error: 'Error al obtener estadísticas por vendedor',
+            details: err.message
+        });
+    }
+});
+
+// ================================
+// ===== RUTA DE PRUEBA ===========
+// ================================
+
+app.get('/api/test', (req, res) => {
+    res.json({ 
+        message: 'API funcionando', 
+        timestamp: new Date().toISOString(),
+        endpoints: [
+            '/api/login (POST)',
+            '/api/usuarios (POST)',
+            '/api/categorias',
+            '/api/clientes',
+            '/api/productos',
+            '/api/proveedores',
+            '/api/vehiculos',
+            '/api/ventas',
+            '/api/estadisticas'
+        ]
     });
 });
-//////////////////////
-//////////////////////
-// Manejo de errores 404
+
+// ================================
+// ===== MANEJO DE ERRORES ========
+// ================================
+
+// Manejo de errores 404 (SIEMPRE AL FINAL)
 app.use((req, res) => {
     res.status(404).json({ error: 'Ruta no encontrada' });
 });
-
-
-
 // Manejo de errores generales
 app.use((err, req, res, next) => {
     console.error('Error general:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
 });
+// ================================
+// ===== INICIAR SERVIDOR =========
+// ================================
 
-// Iniciar servidor
 app.listen(PORT, () => {
     console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-    console.log(`👥 Clientes: http://localhost:${PORT}/clientes`);
-    console.log(`📁 Categorías: http://localhost:${PORT}/categorias`);
-    console.log(`📦 Productos: http://localhost:${PORT}/productos`);
+    console.log(`🔐 Login: POST http://localhost:${PORT}/api/login`);
+    console.log(`📝 Registro: POST http://localhost:${PORT}/api/usuarios`);
     console.log(`🔧 API Test: http://localhost:${PORT}/api/test`);
 });

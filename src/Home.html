@@ -8,18 +8,47 @@
   <!-- Bootstrap 5 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
   <style>
-    body { min-height:100vh; }
+    body { min-height:100vh; background-color: #f8f9fa; }
     .sidebar { min-height:100vh; }
     .card-icon { font-size:28px; }
+
+    .carousel {
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .carousel-item img {
+      height: 300px;
+      object-fit: cover;
+    }
+    @media (max-width: 768px) {
+      .carousel-item img {
+        height: 200px;
+      }
+    }
   </style>
 </head>
 
 <body>
   <!-- NAVBAR -->
-  <nav class="navbar navbar-dark bg-dark px-3">
-    <a class="navbar-brand" href="#">Refaccionaria Lexus</a>
+  <nav class="navbar navbar-dark bg-primary px-3 d-flex justify-content-between align-items-center">
+    <a class="navbar-brand fw-bold" href="#">
+      <i class="fas fa-car-alt me-2"></i>Refaccionaria Lexus
+    </a>
+    <div class="d-flex align-items-center gap-3">
+      <span class="text-white small">
+        <i class="fas fa-user-circle me-1"></i>
+        <span id="navUsuarioNombre">—</span>
+        <span class="badge bg-light text-primary ms-1" id="navUsuarioRol">—</span>
+      </span>
+      <button class="btn btn-outline-light btn-sm" onclick="cerrarSesion()">
+        <i class="fas fa-sign-out-alt me-1"></i>Cerrar sesión
+      </button>
+    </div>
   </nav>
 
   <div class="container-fluid">
@@ -28,21 +57,22 @@
       <!-- SIDEBAR -->
       <aside class="col-12 col-md-3 col-lg-2 p-3 bg-light sidebar">
         <ul class="nav flex-column">
-<li class="nav-item"><a class="nav-link" href="/src/Productos/Productos.html"><i class="fas fa-home me-2"></i>Productos</a></li>
+          <li class="nav-item"><a class="nav-link" href="/src/Productos/Productos.html"><i class="fas fa-box me-2"></i>Productos</a></li>
           <li class="nav-item"><a class="nav-link" href="/src/Categorias/Categorias.html"><i class="fas fa-tags me-2"></i>Categorías</a></li>
           <li class="nav-item"><a class="nav-link" href="/src/Proveedores/Proovedores.html"><i class="fas fa-truck me-2"></i>Proveedores</a></li>
           <li class="nav-item"><a class="nav-link" href="/src/Clientes/Clientes.html"><i class="fas fa-users me-2"></i>Clientes</a></li>
           <li class="nav-item"><a class="nav-link" href="/src/Vehiculos/Vehiculos.html"><i class="fas fa-car me-2"></i>Vehículos</a></li>
-          <li class="nav-item"><a class="nav-link text-danger" href="/src/Ventas/Ventas.html"><i class="fas fa-shopping-cart me-2"></i>Ventas</a></li>        </ul>
+          <li class="nav-item"><a class="nav-link text-danger" href="/src/Ventas/Ventas.html"><i class="fas fa-shopping-cart me-2"></i>Ventas</a></li>
+        </ul>
       </aside>
 
       <!-- MAIN -->
       <main class="col p-4">
         <h2 class="mb-4">Panel de control</h2>
 
-        <div class="row g-3">
+        <!-- TARJETAS DE ESTADÍSTICAS -->
+        <div class="row g-3 mb-4">
 
-          <!-- PRODUCTOS -->
           <div class="col-6 col-md-3">
             <div class="card p-3">
               <div class="d-flex justify-content-between align-items-center">
@@ -55,7 +85,6 @@
             </div>
           </div>
 
-          <!-- CLIENTES -->
           <div class="col-6 col-md-3">
             <div class="card p-3">
               <div class="d-flex justify-content-between align-items-center">
@@ -68,7 +97,6 @@
             </div>
           </div>
 
-          <!-- VENTAS TOTALES -->
           <div class="col-6 col-md-3">
             <div class="card p-3">
               <div class="d-flex justify-content-between align-items-center">
@@ -81,7 +109,6 @@
             </div>
           </div>
 
-          <!-- VENTAS HOY -->
           <div class="col-6 col-md-3">
             <div class="card p-3">
               <div class="d-flex justify-content-between align-items-center">
@@ -95,30 +122,280 @@
           </div>
 
         </div>
+
+        <!-- GRÁFICA DE VENTAS DE LA SEMANA -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <div class="card p-4">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">📈 Ventas de la semana</h5>
+                <small class="text-muted" id="fechaRangoSemana"></small>
+              </div>
+              <canvas id="graficaVentas" height="100"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARRUSEL DE IMÁGENES -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <div id="carouselRefacciones" class="carousel slide carousel-fade" data-bs-ride="carousel">
+
+              <div class="carousel-indicators">
+                <button type="button" data-bs-target="#carouselRefacciones" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
+                <button type="button" data-bs-target="#carouselRefacciones" data-bs-slide-to="1" aria-label="Slide 2"></button>
+                <button type="button" data-bs-target="#carouselRefacciones" data-bs-slide-to="2" aria-label="Slide 3"></button>
+                <button type="button" data-bs-target="#carouselRefacciones" data-bs-slide-to="3" aria-label="Slide 4"></button>
+              </div>
+
+              <div class="carousel-inner">
+                <div class="carousel-item active">
+                  <img src="https://images.unsplash.com/photo-1485291571150-772bcfc10da5?w=1200&h=400&fit=crop" class="d-block w-100" alt="Taller mecánico">
+                  <div class="carousel-caption d-none d-md-block bg-dark bg-opacity-50 rounded p-2">
+                    <h5>Refacciones de calidad</h5>
+                    <p>Las mejores marcas para tu vehículo</p>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <img src="https://images.unsplash.com/photo-1625047509168-a7026f36de04?w=1200&h=400&fit=crop" class="d-block w-100" alt="Motor de auto">
+                  <div class="carousel-caption d-none d-md-block bg-dark bg-opacity-50 rounded p-2">
+                    <h5>Motores y más</h5>
+                    <p>Amplio inventario disponible</p>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <img src="https://www.eluniverso.com/resizer/2wkxpGKyqIGA4yHb15uiKtrkdJI=/arc-anglerfish-arc2-prod-eluniverso/public/5YTQF5DL6ZD2DIHV5ONBMVEL7E.jpg" class="d-block w-100" alt="Llantas">
+                  <div class="carousel-caption d-none d-md-block bg-dark bg-opacity-50 rounded p-2">
+                    <h5>Llantas y rines</h5>
+                    <p>Para todas las marcas y modelos</p>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <img src="https://www.diariomotor.com/imagenes/2018/01/aceite-motor-lubricante-caro-barato-0118-01.jpg?class=XL" class="d-block w-100" alt="Aceites">
+                  <div class="carousel-caption d-none d-md-block bg-dark bg-opacity-50 rounded p-2">
+                    <h5>Aceites</h5>
+                    <p>Los mejores aceites para tu vehículo</p>
+                  </div>
+                </div>
+              </div>
+
+              <button class="carousel-control-prev" type="button" data-bs-target="#carouselRefacciones" data-bs-slide="prev">
+                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                <span class="visually-hidden">Anterior</span>
+              </button>
+              <button class="carousel-control-next" type="button" data-bs-target="#carouselRefacciones" data-bs-slide="next">
+                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                <span class="visually-hidden">Siguiente</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ALERTA DE BIENVENIDA -->
+        <div class="row">
+          <div class="col-12">
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+              <i class="fas fa-info-circle me-2"></i>
+              <strong>¡Bienvenido!</strong> Revisa las estadísticas y mantén tu inventario actualizado.
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          </div>
+        </div>
+
       </main>
     </div>
   </div>
 
-  <!-- SCRIPTS -->
+  <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
+
+    // ── Sesión ────────────────────────────────────────────────────────
+    // Lee las claves que guarda Login.js con sessionStorage
+    function cargarUsuario() {
+      const isLoggedIn  = sessionStorage.getItem('is_logged_in');
+      const timestamp   = sessionStorage.getItem('login_timestamp');
+
+      // Verificar si la sesión sigue vigente (8 horas)
+      if (isLoggedIn !== 'true' || !timestamp) {
+        // Intentar con localStorage (Login.html inline guarda 'usuarioActual')
+        const rawLocal = localStorage.getItem('usuarioActual');
+        if (rawLocal) {
+          try {
+            const u = JSON.parse(rawLocal);
+            document.getElementById('navUsuarioNombre').textContent = u.nombre || 'Usuario';
+            document.getElementById('navUsuarioRol').textContent    = u.rol    || '';
+            return;
+          } catch(e) {}
+        }
+        window.location.href = '/src/Login/Login.html';
+        return;
+      }
+
+      const ocho_horas = 8 * 60 * 60 * 1000;
+      if (Date.now() - parseInt(timestamp) > ocho_horas) {
+        sessionStorage.clear();
+        window.location.href = '/src/Login/Login.html';
+        return;
+      }
+
+      // Leer datos del sessionStorage (claves de Login.js)
+      const nombre = sessionStorage.getItem('user_name')  || 'Usuario';
+      const rol    = sessionStorage.getItem('user_role')  || '';
+
+      document.getElementById('navUsuarioNombre').textContent = nombre;
+      document.getElementById('navUsuarioRol').textContent    = rol;
+    }
+
+    function cerrarSesion() {
+      sessionStorage.clear();
+      localStorage.removeItem('usuarioActual');
+      window.location.href = '/src/Login/Login.html';
+    }
+
+    // ── Estadísticas de tarjetas ──────────────────────────────────────
     async function cargarEstadisticas() {
       try {
-        const res = await fetch('http://localhost:3000/api/estadisticas');
+        const res  = await fetch('http://localhost:3000/api/estadisticas');
         const data = await res.json();
 
-        document.getElementById('countProductos').textContent = data.totalProductos;
-        document.getElementById('countClientes').textContent = data.totalClientes;
-        document.getElementById('countVentasTotales').textContent = data.totalVentas;
-        document.getElementById('countVentasHoy').textContent = data.ventasHoy;
-
+        document.getElementById('countProductos').textContent      = data.totalProductos;
+        document.getElementById('countClientes').textContent       = data.totalClientes;
+        document.getElementById('countVentasTotales').textContent  = data.totalVentas;
+        document.getElementById('countVentasHoy').textContent      = data.ventasHoy;
       } catch (error) {
         console.error('Error cargando estadísticas:', error);
       }
     }
 
-    document.addEventListener('DOMContentLoaded', cargarEstadisticas);
+    // ── Rellena los 7 días aunque no haya ventas ──────────────────────
+    function rellenarDias(datos) {
+      const hoy  = new Date();
+      const dias = [];
+
+      for (let i = 6; i >= 0; i--) {
+        const fecha  = new Date(hoy);
+        fecha.setDate(hoy.getDate() - i);
+
+        const yyyy     = fecha.getFullYear();
+        const mm       = String(fecha.getMonth() + 1).padStart(2, '0');
+        const dd       = String(fecha.getDate()).padStart(2, '0');
+        const fechaStr = `${yyyy}-${mm}-${dd}`;
+
+        const encontrado = datos.find(d => {
+          const diaRaw = d.dia;
+          const diaStr = (diaRaw instanceof Date)
+            ? `${diaRaw.getFullYear()}-${String(diaRaw.getMonth()+1).padStart(2,'0')}-${String(diaRaw.getDate()).padStart(2,'0')}`
+            : String(diaRaw).slice(0, 10);
+          return diaStr === fechaStr;
+        });
+
+        dias.push({
+          dia:          fechaStr,
+          nombre_dia:   fecha.toLocaleDateString('es-MX', { weekday: 'short' }),
+          total_ventas: encontrado ? Number(encontrado.total_ventas)    : 0,
+          monto_total:  encontrado ? parseFloat(encontrado.monto_total) : 0
+        });
+      }
+      return dias;
+    }
+
+    // ── Gráfica de ventas de la semana ────────────────────────────────
+    async function cargarGraficaSemana() {
+      try {
+        const res   = await fetch('http://localhost:3000/api/estadisticas/ventas-semana');
+        const datos = await res.json();
+
+        if (!Array.isArray(datos)) {
+          console.error('La API no devolvió un array:', datos);
+          return;
+        }
+
+        const semana = rellenarDias(datos);
+        const labels = semana.map(d => d.nombre_dia);
+        const montos = semana.map(d => d.monto_total);
+        const ventas = semana.map(d => d.total_ventas);
+
+        document.getElementById('fechaRangoSemana').textContent =
+          `${semana[0].dia}  —  ${semana[6].dia}`;
+
+        const ctx = document.getElementById('graficaVentas').getContext('2d');
+
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Monto ($)',
+                data: montos,
+                backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                borderColor:     'rgba(13, 110, 253, 1)',
+                borderWidth:  1,
+                borderRadius: 6,
+                yAxisID: 'yMonto'
+              },
+              {
+                label: 'N° de ventas',
+                data: ventas,
+                type: 'line',
+                borderColor:     'rgba(255, 99, 132, 1)',
+                backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                borderWidth: 2,
+                pointRadius: 5,
+                tension: 0.3,
+                fill: true,
+                yAxisID: 'yVentas'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: { position: 'top' },
+              tooltip: {
+                callbacks: {
+                  label: ctx => {
+                    if (ctx.dataset.label === 'Monto ($)')
+                      return ` $${ctx.parsed.y.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+                    return ` ${ctx.parsed.y} ventas`;
+                  }
+                }
+              }
+            },
+            scales: {
+              yMonto: {
+                type: 'linear',
+                position: 'left',
+                ticks: {
+                  callback: v => '$' + v.toLocaleString('es-MX')
+                },
+                grid: { color: 'rgba(0,0,0,0.05)' }
+              },
+              yVentas: {
+                type: 'linear',
+                position: 'right',
+                ticks: { stepSize: 1 },
+                grid: { drawOnChartArea: false }
+              }
+            }
+          }
+        });
+
+      } catch (error) {
+        console.error('Error cargando gráfica:', error);
+      }
+    }
+
+    // ── Arranque ──────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      cargarUsuario();
+      cargarEstadisticas();
+      cargarGraficaSemana();
+    });
+
   </script>
 
 </body>
